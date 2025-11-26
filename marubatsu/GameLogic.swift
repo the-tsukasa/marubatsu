@@ -5,8 +5,11 @@ import Foundation
 class GameLogic {
     
     // MARK: - 属性
-    /// 棋盘状态（9个格子，空字符串表示空位）
+    /// 棋盘状态（空字符串表示空位）
     private(set) var board: [String]
+    
+    /// 当前棋盘大小（AIゴッド模式支持3x3到6x6）
+    private(set) var boardSize: Int
     
     /// 当前玩家标记（"○" 或 "×"）
     private(set) var currentPlayer: String
@@ -20,30 +23,85 @@ class GameLogic {
     /// AIゴッド模式：被移除的格子索引（缩小棋盘）
     private(set) var removedCells: Set<Int> = []
     
-    /// 获胜线组合（横、竖、斜）
-    private let winningLines = [
-        [0,1,2], [3,4,5], [6,7,8],  // 横
-        [0,3,6], [1,4,7], [2,5,8],  // 竖
-        [0,4,8], [2,4,6]             // 斜
-    ]
+    /// 获胜线组合（横、竖、斜）- 动态生成
+    private var winningLines: [[Int]] {
+        return generateWinningLines(for: boardSize)
+    }
     
     // MARK: - 初始化
     /// 初始化游戏逻辑
-    init() {
-        self.board = Array(repeating: "", count: GameConstants.totalCells)
+    /// - Parameter boardSize: 棋盘大小（默认3x3）
+    init(boardSize: Int = GameConstants.boardSize) {
+        self.boardSize = min(max(boardSize, GameConstants.minBoardSize), GameConstants.maxBoardSize)
+        let totalCells = self.boardSize * self.boardSize
+        self.board = Array(repeating: "", count: totalCells)
         self.currentPlayer = "○"
         self.gameState = .playing
+    }
+    
+    /// 生成获胜线组合
+    /// - Parameter size: 棋盘大小
+    /// - Returns: 获胜线数组
+    private func generateWinningLines(for size: Int) -> [[Int]] {
+        var lines: [[Int]] = []
+        
+        // 横线
+        for row in 0..<size {
+            for col in 0...(size - 3) {
+                var line: [Int] = []
+                for i in 0..<3 {
+                    line.append(row * size + col + i)
+                }
+                lines.append(line)
+            }
+        }
+        
+        // 竖线
+        for col in 0..<size {
+            for row in 0...(size - 3) {
+                var line: [Int] = []
+                for i in 0..<3 {
+                    line.append((row + i) * size + col)
+                }
+                lines.append(line)
+            }
+        }
+        
+        // 主对角线（左上到右下）
+        for row in 0...(size - 3) {
+            for col in 0...(size - 3) {
+                var line: [Int] = []
+                for i in 0..<3 {
+                    line.append((row + i) * size + col + i)
+                }
+                lines.append(line)
+            }
+        }
+        
+        // 副对角线（右上到左下）
+        for row in 0...(size - 3) {
+            for col in 2..<size {
+                var line: [Int] = []
+                for i in 0..<3 {
+                    line.append((row + i) * size + col - i)
+                }
+                lines.append(line)
+            }
+        }
+        
+        return lines
     }
     
     // MARK: - 游戏操作
     /// 在指定位置下棋
     /// - Parameters:
-    ///   - index: 格子索引（0-8）
+    ///   - index: 格子索引
     /// - Returns: 是否成功下棋
     @discardableResult
     func makeMove(at index: Int) -> Bool {
         // 检查索引有效性
-        guard index >= 0 && index < GameConstants.totalCells else {
+        let totalCells = boardSize * boardSize
+        guard index >= 0 && index < totalCells else {
             return false
         }
         
@@ -116,11 +174,60 @@ class GameLogic {
     // MARK: - 游戏重置
     /// 重置游戏到初始状态
     func reset() {
-        board = Array(repeating: "", count: GameConstants.totalCells)
+        let totalCells = boardSize * boardSize
+        board = Array(repeating: "", count: totalCells)
         currentPlayer = "○"
         gameState = .playing
         outsideMarks = [:]
         removedCells = []
+    }
+    
+    /// 改变棋盘大小（AIゴッド模式）
+    /// - Parameter newSize: 新的棋盘大小（3-6）
+    /// - Returns: 是否成功改变
+    @discardableResult
+    func changeBoardSize(to newSize: Int) -> Bool {
+        let validSize = min(max(newSize, GameConstants.minBoardSize), GameConstants.maxBoardSize)
+        guard validSize != boardSize else { return false }
+        
+        // 保存当前棋盘状态（只保留有效位置）
+        let oldSize = boardSize
+        let oldBoard = board
+        boardSize = validSize
+        let newTotalCells = boardSize * boardSize
+        
+        // 重新初始化棋盘
+        board = Array(repeating: "", count: newTotalCells)
+        
+        // 迁移旧棋盘数据（如果新棋盘更大，保留旧数据）
+        if validSize > oldSize {
+            for row in 0..<oldSize {
+                for col in 0..<oldSize {
+                    let oldIndex = row * oldSize + col
+                    let newIndex = row * boardSize + col
+                    if newIndex < newTotalCells {
+                        board[newIndex] = oldBoard[oldIndex]
+                    }
+                }
+            }
+        } else {
+            // 新棋盘更小，只保留能放下的部分
+            for row in 0..<validSize {
+                for col in 0..<validSize {
+                    let oldIndex = row * oldSize + col
+                    let newIndex = row * boardSize + col
+                    board[newIndex] = oldBoard[oldIndex]
+                }
+            }
+        }
+        
+        // 清除无效的removedCells
+        removedCells = removedCells.filter { $0 < newTotalCells }
+        
+        // 重新检查游戏状态
+        updateGameState()
+        
+        return true
     }
     
     /// 设置游戏状态（用于AIゴッド模式的外部调用）
@@ -152,7 +259,8 @@ class GameLogic {
     /// - Returns: 是否成功移除
     @discardableResult
     func removeCell(at index: Int) -> Bool {
-        guard index >= 0 && index < GameConstants.totalCells else { return false }
+        let totalCells = boardSize * boardSize
+        guard index >= 0 && index < totalCells else { return false }
         guard !removedCells.contains(index) else { return false }
         guard board[index] == "" else { return false } // 只能移除空格子
         removedCells.insert(index)
@@ -183,13 +291,13 @@ class GameLogic {
         
         // 检查包含棋盘外棋子的三连
         // 棋盘外区域位置：
-        // - top-0, top-1, top-2: 对应棋盘第0, 1, 2列的上方
-        // - bottom-0, bottom-1, bottom-2: 对应棋盘第0, 1, 2列的下方
-        // - left-0, left-1, left-2: 对应棋盘第0, 1, 2行的左侧
-        // - right-0, right-1, right-2: 对应棋盘第0, 1, 2行的右侧
+        // - top-0, top-1, ..., top-(boardSize-1): 对应棋盘各列的上方
+        // - bottom-0, bottom-1, ..., bottom-(boardSize-1): 对应棋盘各列的下方
+        // - left-0, left-1, ..., left-(boardSize-1): 对应棋盘各行的左侧
+        // - right-0, right-1, ..., right-(boardSize-1): 对应棋盘各行的右侧
         
         // 检查横线（可能包含上方或下方棋盘外棋子）
-        for row in 0..<GameConstants.boardSize {
+        for row in 0..<boardSize {
             let col0 = row * GameConstants.boardSize
             let col1 = row * GameConstants.boardSize + 1
             let col2 = row * GameConstants.boardSize + 2
@@ -223,10 +331,10 @@ class GameLogic {
         }
         
         // 检查竖线（可能包含左侧或右侧棋盘外棋子）
-        for col in 0..<GameConstants.boardSize {
+        for col in 0..<boardSize {
             let row0 = col
-            let row1 = col + GameConstants.boardSize
-            let row2 = col + GameConstants.boardSize * 2
+            let row1 = col + boardSize
+            let row2 = col + boardSize * 2
             
             let mark0 = board[row0]
             let mark1 = board[row1]
@@ -277,7 +385,8 @@ class GameLogic {
     /// - Parameter index: 格子索引
     /// - Returns: 标记字符串，空位返回空字符串
     func getMark(at index: Int) -> String {
-        guard index >= 0 && index < GameConstants.totalCells else {
+        let totalCells = boardSize * boardSize
+        guard index >= 0 && index < totalCells else {
             return ""
         }
         return board[index]
@@ -287,7 +396,8 @@ class GameLogic {
     /// - Parameter index: 格子索引
     /// - Returns: 如果位置为空返回 true
     func isEmpty(at index: Int) -> Bool {
-        guard index >= 0 && index < GameConstants.totalCells else {
+        let totalCells = boardSize * boardSize
+        guard index >= 0 && index < totalCells else {
             return false
         }
         return board[index] == ""
@@ -309,6 +419,12 @@ class GameLogic {
     /// - Returns: 被移除的格子索引集合
     func getRemovedCells() -> Set<Int> {
         return removedCells
+    }
+    
+    /// 获取当前棋盘大小
+    /// - Returns: 当前棋盘大小
+    func getBoardSize() -> Int {
+        return boardSize
     }
 }
 

@@ -7,6 +7,12 @@ struct GameConstants {
     static let boardSize = 3
     /// 总格子数
     static let totalCells = 9
+    /// AIゴッド模式：最小棋盘大小
+    static let minBoardSize = 3
+    /// AIゴッド模式：最大棋盘大小（6x6）
+    static let maxBoardSize = 6
+    /// AIゴッド模式：最大总格子数（6x6 = 36）
+    static let maxTotalCells = 36
     /// 最小格子尺寸
     static let minCellSize: CGFloat = 80
     /// 最大格子尺寸

@@ -6,22 +6,24 @@ import UIKit
 class UIFactory {
     
     // MARK: - 棋盘绘制
-    /// 绘制3×3棋盘（黑白简洁风格）
+    /// 绘制棋盘（黑白简洁风格，支持动态大小）
     /// - Parameters:
     ///   - scene: 场景节点
     ///   - cellSize: 格子尺寸
     ///   - offsetX: 棋盘X偏移量
     ///   - offsetY: 棋盘Y偏移量
+    ///   - boardSize: 棋盘大小（默认3x3）
     ///   - removedCells: 被移除的格子索引集合（AIゴッド模式）
     static func drawBoard(
         in scene: SKScene,
         cellSize: CGFloat,
         offsetX: CGFloat,
         offsetY: CGFloat,
+        boardSize: Int = GameConstants.boardSize,
         removedCells: Set<Int> = []
     ) {
-        let boardWidth = cellSize * CGFloat(GameConstants.boardSize)
-        let boardHeight = cellSize * CGFloat(GameConstants.boardSize)
+        let boardWidth = cellSize * CGFloat(boardSize)
+        let boardHeight = cellSize * CGFloat(boardSize)
         let padding: CGFloat = 32
         let cornerRadius: CGFloat = 20
         
@@ -54,11 +56,11 @@ class UIFactory {
         let lineColor = UIColor.label.withAlphaComponent(0.25)
         
         // 垂直线
-        for i in 1..<GameConstants.boardSize {
+        for i in 1..<boardSize {
             let path = UIBezierPath()
             let x = offsetX + CGFloat(i) * cellSize
             path.move(to: CGPoint(x: x, y: offsetY))
-            path.addLine(to: CGPoint(x: x, y: offsetY + cellSize * CGFloat(GameConstants.boardSize)))
+            path.addLine(to: CGPoint(x: x, y: offsetY + cellSize * CGFloat(boardSize)))
             
             let line = SKShapeNode(path: path.cgPath)
             line.strokeColor = lineColor
@@ -69,11 +71,11 @@ class UIFactory {
         }
         
         // 水平线
-        for i in 1..<GameConstants.boardSize {
+        for i in 1..<boardSize {
             let path = UIBezierPath()
             let y = offsetY + CGFloat(i) * cellSize
             path.move(to: CGPoint(x: offsetX, y: y))
-            path.addLine(to: CGPoint(x: offsetX + cellSize * CGFloat(GameConstants.boardSize), y: y))
+            path.addLine(to: CGPoint(x: offsetX + cellSize * CGFloat(boardSize), y: y))
             
             let line = SKShapeNode(path: path.cgPath)
             line.strokeColor = lineColor
@@ -178,6 +180,61 @@ class UIFactory {
     }
     
     // MARK: - 按钮创建
+    /// 创建返回按钮（黑白简洁风格）
+    /// - Parameters:
+    ///   - scene: 场景节点
+    ///   - sceneSize: 场景尺寸
+    /// - Returns: 创建的按钮节点
+    @discardableResult
+    static func createBackButton(
+        in scene: SKScene,
+        sceneSize: CGSize
+    ) -> SKLabelNode {
+        let button = SKLabelNode(text: "戻る")
+        button.fontSize = GameConstants.buttonFontSize
+        button.fontName = "Helvetica-Medium"
+        button.fontColor = UIColor.label
+        
+        // 创建按钮背景（黑白风格）
+        let buttonWidth: CGFloat = 80
+        let buttonHeight: CGFloat = 44
+        let buttonBackground = SKShapeNode(rect: CGRect(
+            x: -buttonWidth / 2,
+            y: -buttonHeight / 2,
+            width: buttonWidth,
+            height: buttonHeight
+        ), cornerRadius: 8)
+        
+        button.verticalAlignmentMode = .center
+        button.horizontalAlignmentMode = .center
+        
+        buttonBackground.fillColor = UIColor.secondarySystemBackground
+        buttonBackground.strokeColor = UIColor.label.withAlphaComponent(0.2)
+        buttonBackground.lineWidth = 1
+        buttonBackground.zPosition = -1
+        
+        // 微妙的阴影
+        let shadow = SKShapeNode(rect: CGRect(
+            x: -buttonWidth / 2 + 1,
+            y: -buttonHeight / 2 - 1,
+            width: buttonWidth,
+            height: buttonHeight
+        ), cornerRadius: 8)
+        shadow.fillColor = UIColor.black.withAlphaComponent(0.05)
+        shadow.strokeColor = UIColor.clear
+        shadow.zPosition = -2
+        
+        button.addChild(shadow)
+        button.addChild(buttonBackground)
+        // 按钮位置：左上角
+        button.position = CGPoint(x: 60, y: sceneSize.height - 70)
+        button.name = "backButton"
+        button.zPosition = 100
+        scene.addChild(button)
+        
+        return button
+    }
+    
     /// 创建模式切换按钮（黑白简洁风格）
     /// - Parameters:
     ///   - scene: 场景节点
