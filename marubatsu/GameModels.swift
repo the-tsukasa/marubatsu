@@ -32,6 +32,8 @@ enum GameMode {
     case twoPlayer
     /// AI对战模式（玩家先手）
     case vsAI
+    /// AIゴッド模式（可以在缩小棋盘和棋盘外放置棋子）
+    case vsAIGod
 }
 
 // MARK: - 游戏状态

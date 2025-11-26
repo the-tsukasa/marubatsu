@@ -12,11 +12,13 @@ class UIFactory {
     ///   - cellSize: 格子尺寸
     ///   - offsetX: 棋盘X偏移量
     ///   - offsetY: 棋盘Y偏移量
+    ///   - removedCells: 被移除的格子索引集合（AIゴッド模式）
     static func drawBoard(
         in scene: SKScene,
         cellSize: CGFloat,
         offsetX: CGFloat,
-        offsetY: CGFloat
+        offsetY: CGFloat,
+        removedCells: Set<Int> = []
     ) {
         let boardWidth = cellSize * CGFloat(GameConstants.boardSize)
         let boardHeight = cellSize * CGFloat(GameConstants.boardSize)
@@ -79,6 +81,29 @@ class UIFactory {
             line.lineCap = .round
             line.zPosition = 1
             scene.addChild(line)
+        }
+        
+        // AIゴッド模式：绘制被移除的格子（变灰显示）
+        if !removedCells.isEmpty {
+            for index in removedCells {
+                let row = index / GameConstants.boardSize
+                let col = index % GameConstants.boardSize
+                let x = offsetX + CGFloat(col) * cellSize
+                let y = offsetY + CGFloat(row) * cellSize
+                
+                // 绘制灰色半透明覆盖层
+                let removedCell = SKShapeNode(rect: CGRect(
+                    x: x,
+                    y: y,
+                    width: cellSize,
+                    height: cellSize
+                ))
+                removedCell.fillColor = UIColor.label.withAlphaComponent(0.1)
+                removedCell.strokeColor = UIColor.label.withAlphaComponent(0.05)
+                removedCell.lineWidth = 1
+                removedCell.zPosition = 0
+                scene.addChild(removedCell)
+            }
         }
     }
     
@@ -165,14 +190,22 @@ class UIFactory {
         gameMode: GameMode,
         sceneSize: CGSize
     ) -> SKLabelNode {
-        let modeText = gameMode == .twoPlayer ? "人間" : "AI"
+        let modeText: String
+        switch gameMode {
+        case .twoPlayer:
+            modeText = "人間"
+        case .vsAI:
+            modeText = "AI"
+        case .vsAIGod:
+            modeText = "AIゴッド"
+        }
         let button = SKLabelNode(text: modeText)
         button.fontSize = GameConstants.buttonFontSize
         button.fontName = "Helvetica-Medium"
         button.fontColor = UIColor.label
         
         // 创建按钮背景（黑白风格）
-        let buttonWidth: CGFloat = 90
+        let buttonWidth: CGFloat = modeText.count > 4 ? 120 : 90  // AIゴッド需要更宽
         let buttonHeight: CGFloat = 44
         let buttonBackground = SKShapeNode(rect: CGRect(
             x: -buttonWidth / 2,
