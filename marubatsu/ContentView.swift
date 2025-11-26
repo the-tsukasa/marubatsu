@@ -1,61 +1,24 @@
-//
-//  ContentView.swift
-//  marubatsu
-//
-//  Created by tsukasa on 2025/11/24.
-//
-
 import SwiftUI
-import SwiftData
+import SpriteKit
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @State private var scene: GameScene = {
+        let scene = GameScene()
+        return scene
+    }()
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
-                    }
+        GeometryReader { geometry in
+            SpriteView(scene: scene)
+                .ignoresSafeArea()
+                .onAppear {
+                    // 使用实际屏幕尺寸
+                    scene.size = geometry.size
                 }
-                .onDelete(perform: deleteItems)
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
+                .onChange(of: geometry.size) { oldSize, newSize in
+                    // 屏幕尺寸改变时更新
+                    scene.size = newSize
                 }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
-        } detail: {
-            Text("Select an item")
         }
     }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
-            }
-        }
-    }
-}
-
-#Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
 }
