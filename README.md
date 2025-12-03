@@ -8,4 +8,4 @@ SwiftUI + SpriteKit 制作のシンプルな○×ゲーム。ウェルカム画�
 -更新 README 测试 🧪-
 feature/readme-update
 test
-
+test 2
