@@ -7,4 +7,5 @@ SwiftUI + SpriteKit 制作のシンプルな○×ゲーム。ウェルカム画�
 - `AIEngine.swift`：AI／AIゴッド  
 -更新 README 测试 🧪-
 feature/readme-update
+test
 
