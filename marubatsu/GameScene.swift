@@ -6,7 +6,7 @@ class GameScene: SKScene {
     
     // MARK: - 属性
     /// 游戏逻辑管理器
-    private var gameLogic: GameLogic
+    internal var gameLogic: GameLogic
     
     /// AI引擎
     private var aiEngine: AIEngine?
@@ -15,26 +15,49 @@ class GameScene: SKScene {
     var gameMode: GameMode = .twoPlayer {
         didSet {
             // 切换模式时更新AI引擎
-            if gameMode == .vsAI || gameMode == .vsAIGod {
+            if gameMode == .vsAI {
                 aiEngine = AIEngine(aiPlayer: "×")
+            } else if gameMode == .vsAIGod {
+                aiEngine = AIGodEngine(aiPlayer: "×")
             } else {
                 aiEngine = nil
             }
+            
+            // 创建对应的Handler、TouchHandler和Renderer
+            currentHandler = GameModeHandlerFactory.create(for: gameMode)
+            touchHandler = TouchHandlerFactory.create(for: gameMode)
+            renderer = UIRendererFactory.create(for: gameMode)
         }
     }
     
+    /// 当前模式处理器
+    internal var currentHandler: GameModeHandler?
+    
+    /// 当前触摸处理器
+    private var touchHandler: TouchHandler?
+    
+    /// 当前UI渲染器
+    private var renderer: UIRenderer?
+    
     /// 布局计算
-    private var cellSize: CGFloat = 120
-    private var offsetX: CGFloat = 0
-    private var offsetY: CGFloat = 0
+    internal var cellSize: CGFloat = 120
+    internal var offsetX: CGFloat = 0
+    internal var offsetY: CGFloat = 0
     
     /// UI 节点
     private var statusLabel: SKLabelNode?
     private var resultLabel: SKLabelNode?
-    private var resetButton: SKLabelNode?
-    private var modeButton: SKLabelNode?
-    private var backButton: SKLabelNode?
-    private var markNodes: [SKNode] = []
+    internal var resetButton: SKLabelNode?
+    internal var modeButton: SKLabelNode?
+    internal var backButton: SKLabelNode?
+    internal var markNodes: [SKNode] = []
+    
+    /// AIゴッド模式：背景节点
+    private var backgroundGradient: SKSpriteNode?
+    
+    /// AIゴッド模式：机器人角色节点
+    private var heroX: SKSpriteNode?
+    private var heroO: SKSpriteNode?
     
     /// 返回欢迎页面的回调
     var onBackToWelcome: (() -> Void)?
@@ -43,17 +66,11 @@ class GameScene: SKScene {
     private var outsideMarkNodes: [String: SKNode] = [:]
     
     /// 长按检测（用于缩小棋盘）
-    private var longPressTimer: Timer?
-    private var longPressLocation: CGPoint?
-    
-    /// 双击检测（AIゴッド模式：触发隐藏棋盘）
-    private var lastTapTime: TimeInterval = 0
-    private var lastTapLocation: CGPoint = .zero
-    private let doubleTapTimeInterval: TimeInterval = 0.3  // 双击时间间隔（秒）
-    private let doubleTapDistanceThreshold: CGFloat = 20  // 双击位置容差（点）
+    internal var longPressTimer: Timer?
+    internal var longPressLocation: CGPoint?
     
     /// AIゴッド模式：是否已触发隐藏棋盘（用于控制隐藏棋盘显示）
-    private var hasScaled: Bool = false
+    internal var hasScaled: Bool = false
     
     // MARK: - 初始化
     /// 无参数初始化器（使用默认尺寸）
@@ -75,6 +92,13 @@ class GameScene: SKScene {
     
     // MARK: - 场景生命周期
     override func didMove(to view: SKView) {
+        // 初始化Handler
+        currentHandler = GameModeHandlerFactory.create(for: gameMode)
+        touchHandler = TouchHandlerFactory.create(for: gameMode)
+        renderer = UIRendererFactory.create(for: gameMode)
+        
+        // 设置背景（所有模式都使用黑色背景）
+        backgroundColor = UIColor.black
         // 设置渐变背景
         setupBackground()
         calculateLayout()
@@ -84,6 +108,11 @@ class GameScene: SKScene {
     override func didChangeSize(_ oldSize: CGSize) {
         // 屏幕尺寸改变时重新计算布局
         calculateLayout()
+        // 确保场景背景色是黑色（所有模式都使用黑色背景）
+        backgroundColor = UIColor.black
+        // 更新背景尺寸
+        backgroundGradient?.size = size
+        backgroundGradient?.position = CGPoint(x: size.width / 2, y: size.height / 2)
         if children.count > 0 {
             setupGame()
         }
@@ -91,8 +120,40 @@ class GameScene: SKScene {
     
     // MARK: - 背景设置
     /// 设置背景
-    private func setupBackground() {
-        backgroundColor = UIColor.systemBackground
+    /// 不同模式的背景图：
+    /// - 人間モード (twoPlayer): bg_gradient_1.png
+    /// - AIモード (vsAI): bg_gradient_2.png
+    /// - AIゴッドモード (vsAIGod): bg_gradient_3.png
+    internal func setupBackground() {
+        // 移除旧的背景节点
+        backgroundGradient?.removeFromParent()
+        
+        // 根据游戏模式选择背景图
+        let gradientImageName: String
+        switch gameMode {
+        case .twoPlayer:
+            // 人間モード：使用 bg_gradient_1.png
+            gradientImageName = "bg_gradient_1"
+            backgroundColor = UIColor.black
+        case .vsAI:
+            // AIモード：使用 bg_gradient_2.png
+            gradientImageName = "bg_gradient_2"
+            backgroundColor = UIColor.black
+        case .vsAIGod:
+            // AIゴッドモード：使用 bg_gradient_3.png
+            gradientImageName = "bg_gradient_3"
+            backgroundColor = UIColor.black
+        }
+        
+        // 创建渐变背景（最底层）
+        if let gradientImage = UIImage(named: gradientImageName) {
+            let gradientTexture = SKTexture(image: gradientImage)
+            backgroundGradient = SKSpriteNode(texture: gradientTexture)
+            backgroundGradient?.size = size
+            backgroundGradient?.position = CGPoint(x: size.width / 2, y: size.height / 2)
+            backgroundGradient?.zPosition = -10  // 最底层
+            addChild(backgroundGradient!)
+        }
     }
     
     // MARK: - 布局计算
@@ -127,47 +188,136 @@ class GameScene: SKScene {
     
     // MARK: - 游戏设置
     /// 设置游戏UI
-    private func setupGame() {
-        removeAllChildren()
+    internal func setupGame() {
+        // 移除游戏相关的节点（但保留背景）
+        markNodes.forEach { $0.removeFromParent() }
         markNodes.removeAll()
+        outsideMarkNodes.forEach { $0.value.removeFromParent() }
         outsideMarkNodes.removeAll()
         
-        // 绘制棋盘
-        let removedCells = gameMode == .vsAIGod ? getRemovedCells() : []
-        let currentBoardSize = getCurrentBoardSize()
+        // 移除旧的UI节点（但保留背景）
+        statusLabel?.removeFromParent()
+        resultLabel?.removeFromParent()
+        resetButton?.removeFromParent()
+        modeButton?.removeFromParent()
+        backButton?.removeFromParent()
+        heroX?.removeFromParent()
+        heroO?.removeFromParent()
+        
+        // 设置背景（如果模式改变或首次设置）
+        setupBackground()
+        
+        // 绘制棋盘（所有模式都使用3x3固定大小）
+        let boardSize = GameConstants.boardSize
+        let isGodMode = gameMode == .vsAIGod
+        
+        // 确保场景背景色是黑色（所有模式都使用黑色背景）
+        backgroundColor = UIColor.black
+        
+        // AIゴッド模式：如果首次进入且当前玩家是默认的"○"，设置AI先手
+        if isGodMode, gameLogic.currentPlayer == "○", 
+           gameLogic.gameState == .playing,
+           let aiEngine = aiEngine {
+            gameLogic.setCurrentPlayer(aiEngine.aiPlayer)
+        }
+        
         UIFactory.drawBoard(
             in: self,
             cellSize: cellSize,
             offsetX: offsetX,
             offsetY: offsetY,
-            boardSize: currentBoardSize,
-            removedCells: removedCells
+            boardSize: boardSize,
+            removedCells: [],
+            isGodMode: isGodMode
         )
         
-        // AIゴッド模式：只有缩放后才绘制隐藏棋盘区域
-        if gameMode == .vsAIGod && hasScaled {
-            drawOutsideAreas()
-        }
+        // 所有模式：添加机器人角色（根据模式显示对应的角色）
+        setupHeroCharacters()
         
-        // 绘制返回按钮
+        // 统一按钮布局（所有模式）
+        // MENU按钮：左上角
         backButton = UIFactory.createBackButton(
             in: self,
             sceneSize: size
         )
         
-        // 绘制模式按钮
+        // 模式切换按钮：右上角
         modeButton = UIFactory.createModeButton(
             in: self,
             gameMode: gameMode,
             sceneSize: size
         )
         
+        // RESET按钮：最底下（居中，所有模式统一）
+        resetButton = UIFactory.createResetButton(
+            in: self,
+            sceneSize: size
+        )
+        
         // 更新状态标签
         updateStatusLabel()
         
-        // AIゴッド模式：只有缩放后才恢复棋盘外标记
-        if gameMode == .vsAIGod && hasScaled {
-            restoreOutsideMarks()
+        // AIゴッド模式：如果AI先手，自动下第一步（快速执行）
+        if isGodMode, gameLogic.gameState == .playing,
+           let aiEngine = aiEngine,
+           gameLogic.currentPlayer == aiEngine.aiPlayer {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                if let handler = self.currentHandler {
+                    handler.handleAITurn(in: self)
+                }
+            }
+        }
+    }
+    
+    /// 设置机器人角色（所有模式）
+    internal func setupHeroCharacters() {
+        // 计算机器人位置（棋盘两侧）
+        let boardSize = GameConstants.boardSize
+        let boardWidth = cellSize * CGFloat(boardSize)
+        let boardHeight = cellSize * CGFloat(boardSize)
+        let boardCenterX = offsetX + boardWidth / 2
+        let boardCenterY = offsetY + boardHeight / 2
+        
+        // 机器人大小（根据棋盘大小调整）
+        let heroSize: CGFloat = min(cellSize * 1.5, 200)
+        
+        // 根据游戏模式选择对应的机器人角色图片
+        let imageSuffix: String
+        switch gameMode {
+        case .twoPlayer:
+            imageSuffix = "_1"  // 人間モード：hero_x_1.png, hero_o_1.png
+        case .vsAI:
+            imageSuffix = "_2"  // AIモード：hero_x_2.png, hero_o_2.png
+        case .vsAIGod:
+            imageSuffix = "_3"  // AIゴッドモード：hero_x_3.png, hero_o_3.png
+        }
+        
+        // X机器人（左侧）
+        if let heroXImage = UIImage(named: "hero_x\(imageSuffix)") {
+            let heroXTexture = SKTexture(image: heroXImage)
+            heroX = SKSpriteNode(texture: heroXTexture)
+            let scale = heroSize / heroXImage.size.width
+            heroX?.setScale(scale)
+            heroX?.position = CGPoint(
+                x: offsetX - heroSize * 0.8,
+                y: boardCenterY
+            )
+            heroX?.zPosition = 10
+            addChild(heroX!)
+        }
+        
+        // O机器人（右侧）
+        if let heroOImage = UIImage(named: "hero_o\(imageSuffix)") {
+            let heroOTexture = SKTexture(image: heroOImage)
+            heroO = SKSpriteNode(texture: heroOTexture)
+            let scale = heroSize / heroOImage.size.width
+            heroO?.setScale(scale)
+            heroO?.position = CGPoint(
+                x: offsetX + boardWidth + heroSize * 0.8,
+                y: boardCenterY
+            )
+            heroO?.zPosition = 10
+            addChild(heroO!)
         }
     }
     
@@ -177,202 +327,6 @@ class GameScene: SKScene {
         // 棋盘越小，隐藏区域越大，充分利用空间
         let multiplier: CGFloat = boardSize == 3 ? 1.5 : (boardSize == 4 ? 1.2 : 1.0)
         return cellSize * multiplier
-    }
-    
-    /// 绘制棋盘外区域提示（AIゴッド模式）- 隐藏棋盘
-    private func drawOutsideAreas() {
-        let boardSize = getCurrentBoardSize()
-        let boardWidth = cellSize * CGFloat(boardSize)
-        let boardHeight = cellSize * CGFloat(boardSize)
-        let outsideAreaSize = getOutsideAreaSize()  // 使用动态大小
-        
-        // 虚线样式（增强视觉提示）
-        let lineColor = UIColor.label.withAlphaComponent(0.4)  // 从0.25改为0.4，更明显
-        let lineWidth: CGFloat = 2.0  // 从1.5改为2.0，更粗
-        let backgroundColor = UIColor.systemBlue.withAlphaComponent(0.05)  // 淡蓝色背景提示
-        
-        // 绘制上方隐藏棋盘区域（虚线框）
-        for col in 0..<boardSize {
-            let x = offsetX + CGFloat(col) * cellSize
-            let y = offsetY + boardHeight
-            
-            // 绘制背景提示
-            let backgroundArea = SKShapeNode(rect: CGRect(
-                x: x,
-                y: y,
-                width: cellSize,
-                height: outsideAreaSize
-            ))
-            backgroundArea.fillColor = backgroundColor
-            backgroundArea.strokeColor = UIColor.clear
-            backgroundArea.zPosition = 0.3
-            addChild(backgroundArea)
-            
-            // 绘制虚线框（使用多个小线段模拟虚线）
-            drawDashedRect(
-                x: x,
-                y: y,
-                width: cellSize,
-                height: outsideAreaSize,
-                color: lineColor,
-                lineWidth: lineWidth
-            )
-        }
-        
-        // 绘制下方隐藏棋盘区域（虚线框）
-        for col in 0..<boardSize {
-            let x = offsetX + CGFloat(col) * cellSize
-            let y = offsetY - outsideAreaSize
-            
-            // 绘制背景提示
-            let backgroundArea = SKShapeNode(rect: CGRect(
-                x: x,
-                y: y,
-                width: cellSize,
-                height: outsideAreaSize
-            ))
-            backgroundArea.fillColor = backgroundColor
-            backgroundArea.strokeColor = UIColor.clear
-            backgroundArea.zPosition = 0.3
-            addChild(backgroundArea)
-            
-            drawDashedRect(
-                x: x,
-                y: y,
-                width: cellSize,
-                height: outsideAreaSize,
-                color: lineColor,
-                lineWidth: lineWidth
-            )
-        }
-        
-        // 绘制左侧隐藏棋盘区域（虚线框）
-        for row in 0..<boardSize {
-            let x = offsetX - outsideAreaSize
-            let y = offsetY + CGFloat(row) * cellSize
-            
-            // 绘制背景提示
-            let backgroundArea = SKShapeNode(rect: CGRect(
-                x: x,
-                y: y,
-                width: outsideAreaSize,
-                height: cellSize
-            ))
-            backgroundArea.fillColor = backgroundColor
-            backgroundArea.strokeColor = UIColor.clear
-            backgroundArea.zPosition = 0.3
-            addChild(backgroundArea)
-            
-            drawDashedRect(
-                x: x,
-                y: y,
-                width: outsideAreaSize,
-                height: cellSize,
-                color: lineColor,
-                lineWidth: lineWidth
-            )
-        }
-        
-        // 绘制右侧隐藏棋盘区域（虚线框）
-        for row in 0..<boardSize {
-            let x = offsetX + boardWidth
-            let y = offsetY + CGFloat(row) * cellSize
-            
-            // 绘制背景提示
-            let backgroundArea = SKShapeNode(rect: CGRect(
-                x: x,
-                y: y,
-                width: outsideAreaSize,
-                height: cellSize
-            ))
-            backgroundArea.fillColor = backgroundColor
-            backgroundArea.strokeColor = UIColor.clear
-            backgroundArea.zPosition = 0.3
-            addChild(backgroundArea)
-            
-            drawDashedRect(
-                x: x,
-                y: y,
-                width: outsideAreaSize,
-                height: cellSize,
-                color: lineColor,
-                lineWidth: lineWidth
-            )
-        }
-    }
-    
-    /// 绘制虚线矩形（使用多个小线段模拟虚线效果）
-    private func drawDashedRect(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat, color: UIColor, lineWidth: CGFloat) {
-        let dashLength: CGFloat = 6
-        let gapLength: CGFloat = 3
-        
-        // 绘制上边（从左到右）
-        var currentX = x
-        while currentX < x + width {
-            let segmentLength = min(dashLength, x + width - currentX)
-            let path = UIBezierPath()
-            path.move(to: CGPoint(x: currentX, y: y + height))
-            path.addLine(to: CGPoint(x: currentX + segmentLength, y: y + height))
-
-            let line = SKShapeNode(path: path.cgPath)
-            line.strokeColor = color
-            line.lineWidth = lineWidth
-            line.zPosition = 0.5
-            addChild(line)
-            
-            currentX += dashLength + gapLength
-        }
-        
-        // 绘制下边（从左到右）
-        currentX = x
-        while currentX < x + width {
-            let segmentLength = min(dashLength, x + width - currentX)
-            let path = UIBezierPath()
-            path.move(to: CGPoint(x: currentX, y: y))
-            path.addLine(to: CGPoint(x: currentX + segmentLength, y: y))
-
-            let line = SKShapeNode(path: path.cgPath)
-            line.strokeColor = color
-            line.lineWidth = lineWidth
-            line.zPosition = 0.5
-            addChild(line)
-            
-            currentX += dashLength + gapLength
-        }
-        
-        // 绘制左边（从下到上）
-        var currentY = y
-        while currentY < y + height {
-            let segmentLength = min(dashLength, y + height - currentY)
-            let path = UIBezierPath()
-            path.move(to: CGPoint(x: x, y: currentY))
-            path.addLine(to: CGPoint(x: x, y: currentY + segmentLength))
-
-            let line = SKShapeNode(path: path.cgPath)
-            line.strokeColor = color
-            line.lineWidth = lineWidth
-            line.zPosition = 0.5
-            addChild(line)
-            
-            currentY += dashLength + gapLength
-        }
-        
-        // 绘制右边（从下到上）
-        currentY = y
-        while currentY < y + height {
-            let segmentLength = min(dashLength, y + height - currentY)
-            let path = UIBezierPath()
-            path.move(to: CGPoint(x: x + width, y: currentY))
-            path.addLine(to: CGPoint(x: x + width, y: currentY + segmentLength))
-
-            let line = SKShapeNode(path: path.cgPath)
-            line.strokeColor = color
-            line.lineWidth = lineWidth
-            line.zPosition = 0.5
-            addChild(line)
-            
-            currentY += dashLength + gapLength
-        }
     }
     
     /// 恢复棋盘外标记（AIゴッド模式）
@@ -389,113 +343,28 @@ class GameScene: SKScene {
     }
     
     // MARK: - 触摸事件处理
-    /// 处理触摸开始事件（用于长按检测和双击检测）
+    /// 处理触摸开始事件
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first else { return }
-        let location = touch.location(in: self)
-        
-        // AIゴッド模式：检测长按以缩小棋盘
-        if gameMode == .vsAIGod && gameLogic.gameState == .playing {
-            longPressLocation = location
-            longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [weak self] _ in
-                self?.handleLongPress(at: location)
-            }
-        }
-        
-        // AIゴッド模式：检测双击上下空白区域（触发隐藏棋盘）
-        if gameMode == .vsAIGod && !hasScaled {
-            // 只检测在上下空白区域的双击
-            if checkIfInTopBottomBlankArea(location: location) {
-                let currentTime = touch.timestamp
-                let timeSinceLastTap = currentTime - lastTapTime
-                let distanceFromLastTap = distanceBetween(location, lastTapLocation)
-                
-                // 检查是否是双击（时间间隔短且位置相近）
-                if timeSinceLastTap < doubleTapTimeInterval && 
-                   distanceFromLastTap < doubleTapDistanceThreshold {
-                    // 触发隐藏棋盘
-                    triggerHiddenBoard()
-                    // 重置双击检测
-                    lastTapTime = 0
-                    lastTapLocation = .zero
-                    return  // 双击触发后，不继续处理其他操作
-                } else {
-                    // 记录第一次点击（在空白区域）
-                    lastTapTime = currentTime
-                    lastTapLocation = location
-                    return  // 在空白区域的单次点击，不处理为游戏操作
-                }
-            } else {
-                // 不在空白区域，重置双击检测
-                lastTapTime = 0
-                lastTapLocation = .zero
-            }
-        }
+        // 所有模式使用统一的触摸处理
     }
     
     /// 处理触摸结束事件
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         // 取消长按计时器
-        longPressTimer?.invalidate()
-        longPressTimer = nil
-        longPressLocation = nil
+        touchHandler?.cancelLongPress(in: self)
         
         guard let touch = touches.first else { return }
         let touchLocation = touch.location(in: self)
-
-        // 检查是否点击返回按钮（任何状态下都可以返回）
-        if let backButton = backButton {
-            let buttonWidth: CGFloat = 100
-            let buttonHeight: CGFloat = 50
-            let buttonRect = CGRect(
-                x: backButton.position.x - buttonWidth / 2,
-                y: backButton.position.y - buttonHeight / 2,
-                width: buttonWidth,
-                height: buttonHeight
-            )
-            if buttonRect.contains(touchLocation) {
-                onBackToWelcome?()
-                return
+        
+        // 使用TouchHandler处理触摸事件
+        if let touchHandler = touchHandler {
+            if touchHandler.handleTouch(at: touchLocation, in: self) {
+                return  // 已处理
             }
         }
-
-        // 检查是否点击模式按钮（任何状态下都可以切换）
-        if let modeButton = modeButton {
-            let buttonWidth: CGFloat = 180
-            let buttonHeight: CGFloat = 50
-            let buttonRect = CGRect(
-                x: modeButton.position.x - buttonWidth / 2,
-                y: modeButton.position.y - buttonHeight / 2,
-                width: buttonWidth,
-                height: buttonHeight
-            )
-            if buttonRect.contains(touchLocation) {
-                toggleGameMode()
-                return
-            }
-        }
-
-        // 检查是否点击重置按钮（游戏结束时）
-        if gameLogic.gameState != .playing {
-            if let resetButton = resetButton {
-                let buttonWidth: CGFloat = 200
-                let buttonHeight: CGFloat = 50
-                let buttonRect = CGRect(
-                    x: resetButton.position.x - buttonWidth / 2,
-                    y: resetButton.position.y - buttonHeight / 2,
-                    width: buttonWidth,
-                    height: buttonHeight
-                )
-                if buttonRect.contains(touchLocation) {
-                    resetGame()
-                    return
-                }
-            }
-            // 游戏结束时，不允许其他操作
-            return
-        }
-
-        // 游戏结束时不允许下棋
+        
+        // 如果TouchHandler未处理，使用原有逻辑（向后兼容）
+        // 游戏结束时，不允许其他操作
         if gameLogic.gameState != .playing {
             return
         }
@@ -504,17 +373,9 @@ class GameScene: SKScene {
         if (gameMode == .vsAI || gameMode == .vsAIGod) && gameLogic.currentPlayer == aiEngine?.aiPlayer {
             return
         }
-        
-        // AIゴッド模式：只有缩放后才允许在隐藏棋盘区域放置棋子
-        if gameMode == .vsAIGod && hasScaled {
-            if let outsidePosition = checkOutsideAreaClick(location: touchLocation) {
-                placeOutsideMark(at: outsidePosition)
-                return
-            }
-        }
 
-        // 检测点击的格子
-        let boardSize = getCurrentBoardSize()
+        // 检测点击的格子（固定3x3）
+        let boardSize = GameConstants.boardSize
         for row in 0..<boardSize {
             for col in 0..<boardSize {
                 let index = row * boardSize + col
@@ -523,11 +384,6 @@ class GameScene: SKScene {
 
                 if touchLocation.x > x && touchLocation.x < x + cellSize &&
                    touchLocation.y > y && touchLocation.y < y + cellSize {
-                    
-                    // 检查格子是否被移除
-                    if gameLogic.isCellRemoved(at: index) {
-                        return  // 被移除的格子不能操作
-                    }
                     
                     if gameLogic.isEmpty(at: index) {
                         makeMove(row: row, col: col, index: index)
@@ -539,7 +395,7 @@ class GameScene: SKScene {
     
     // MARK: - 游戏操作
     /// 切换游戏模式（三种模式循环：人間 -> AI -> AIゴッド -> 人間）
-    private func toggleGameMode() {
+    internal func toggleGameMode() {
         switch gameMode {
         case .twoPlayer:
             gameMode = .vsAI
@@ -548,14 +404,7 @@ class GameScene: SKScene {
         case .vsAIGod:
             gameMode = .twoPlayer
         }
-        // 切换模式时重置缩放标志
-        hasScaled = false
-        modeButton?.removeFromParent()
-        modeButton = UIFactory.createModeButton(
-            in: self,
-            gameMode: gameMode,
-            sceneSize: size
-        )
+        // 重新设置游戏（会重新创建所有按钮，保持布局一致）
         resetGame()
     }
     
@@ -564,7 +413,7 @@ class GameScene: SKScene {
     ///   - row: 行索引
     ///   - col: 列索引
     ///   - index: 格子索引
-    private func makeMove(row: Int, col: Int, index: Int) {
+    internal func makeMove(row: Int, col: Int, index: Int) {
         // 调用游戏逻辑下棋
         guard gameLogic.makeMove(at: index) else {
             return
@@ -578,29 +427,26 @@ class GameScene: SKScene {
             mark: gameLogic.getMark(at: index),
             cellSize: cellSize,
             offsetX: offsetX,
-            offsetY: offsetY
+            offsetY: offsetY,
+            gameMode: gameMode
         )
         markNodes.append(markNode)
         
         // 检查游戏状态
-        if gameMode == .vsAIGod {
-            checkGameStateWithOutside()
-        } else {
-            switch gameLogic.gameState {
-            case .won(let winner):
-                showResult("\(winner) の勝ち!")
-            case .draw:
-                showResult("引き分け!")
-            case .playing:
-                // 更新状态标签
+        switch gameLogic.gameState {
+        case .won(let winner):
+            showResult("\(winner) の勝ち!")
+        case .draw:
+            showResult("引き分け!")
+        case .playing:
+            // 更新状态标签
             updateStatusLabel()
             
             // AI模式下，如果轮到AI，延迟下棋
-                if gameMode == .vsAI && gameLogic.gameState == .playing {
-                    if let aiEngine = aiEngine, gameLogic.currentPlayer == aiEngine.aiPlayer {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                    self.makeAIMove()
-                        }
+            if (gameMode == .vsAI || gameMode == .vsAIGod) && gameLogic.gameState == .playing {
+                if let aiEngine = aiEngine, gameLogic.currentPlayer == aiEngine.aiPlayer {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                        self.makeAIMove()
                     }
                 }
             }
@@ -615,59 +461,27 @@ class GameScene: SKScene {
             return
         }
         
-        // 获取当前棋盘状态
-        let board = (0..<GameConstants.totalCells).map { gameLogic.getMark(at: $0) }
+        // 获取当前棋盘状态（固定3x3）
+        let boardSize = GameConstants.boardSize
+        let totalCells = boardSize * boardSize
+        let board = (0..<totalCells).map { gameLogic.getMark(at: $0) }
         
         // 获取AI最佳下棋位置
         if let bestMove = aiEngine.findBestMove(board: board) {
-            let row = bestMove / GameConstants.boardSize
-            let col = bestMove % GameConstants.boardSize
+            let row = bestMove / boardSize
+            let col = bestMove % boardSize
             makeMove(row: row, col: col, index: bestMove)
         }
     }
     
-    // MARK: - AIゴッド模式
-    /// 获取当前棋盘大小
-    private func getCurrentBoardSize() -> Int {
-        return gameLogic.getBoardSize()
-    }
-    
-    /// 计算两点之间的距离
-    private func distanceBetween(_ point1: CGPoint, _ point2: CGPoint) -> CGFloat {
-        let dx = point2.x - point1.x
-        let dy = point2.y - point1.y
-        return sqrt(dx * dx + dy * dy)
-    }
-    
-    /// 检查点击是否在上下空白区域
-    /// - Parameter location: 点击位置
-    /// - Returns: 如果在上下空白区域返回 true
-    private func checkIfInTopBottomBlankArea(location: CGPoint) -> Bool {
-        let boardSize = getCurrentBoardSize()
-        let boardWidth = cellSize * CGFloat(boardSize)
-        let boardHeight = cellSize * CGFloat(boardSize)
-        
-        // 检查是否在棋盘上方空白区域
-        let topBlankArea = CGRect(
-            x: offsetX,
-            y: offsetY + boardHeight,
-            width: boardWidth,
-            height: size.height - (offsetY + boardHeight)
-        )
-        
-        // 检查是否在棋盘下方空白区域
-        let bottomBlankArea = CGRect(
-            x: offsetX,
-            y: 0,
-            width: boardWidth,
-            height: offsetY
-        )
-        
-        return topBlankArea.contains(location) || bottomBlankArea.contains(location)
+    // MARK: - 辅助方法
+    /// 获取当前棋盘大小（固定3x3）
+    internal func getCurrentBoardSize() -> Int {
+        return GameConstants.boardSize
     }
     
     /// 触发隐藏棋盘（双击上下空白区域后调用）
-    private func triggerHiddenBoard() {
+    internal func triggerHiddenBoard() {
         guard gameMode == .vsAIGod && !hasScaled && gameLogic.gameState == .playing else { return }
         
         // 将棋盘变为6x6（最大尺寸）
@@ -719,7 +533,8 @@ class GameScene: SKScene {
                     mark: mark,
                     cellSize: cellSize,
                     offsetX: offsetX,
-                    offsetY: offsetY
+                    offsetY: offsetY,
+                    gameMode: gameMode
                 )
                 markNodes.append(markNode)
             }
@@ -732,7 +547,7 @@ class GameScene: SKScene {
     /// AIゴッド模式：检查是否点击了棋盘外区域（隐藏棋盘）
     /// - Parameter location: 点击位置
     /// - Returns: 位置标识（如"top-1", "left-2"等），如果没有点击到则返回nil
-    private func checkOutsideAreaClick(location: CGPoint) -> String? {
+    internal func checkOutsideAreaClick(location: CGPoint) -> String? {
         let currentBoardSize = getCurrentBoardSize()
         let boardWidth = cellSize * CGFloat(currentBoardSize)
         let boardHeight = cellSize * CGFloat(currentBoardSize)
@@ -788,7 +603,7 @@ class GameScene: SKScene {
     
     /// 在棋盘外放置标记（AIゴッド模式）
     /// - Parameter position: 位置标识
-    private func placeOutsideMark(at position: String) {
+    internal func placeOutsideMark(at position: String) {
         guard gameLogic.gameState == .playing else { return }
         
         // 调用游戏逻辑放置标记
@@ -842,34 +657,60 @@ class GameScene: SKScene {
             return
         }
         
-        let radius = cellSize / 2 * (1 - GameConstants.markPaddingRatio) * 0.7  // 稍小一些
         let markNode = SKNode()
         markNode.position = CGPoint(x: centerX, y: centerY)
         markNode.zPosition = 5
         
-        let markColor = UIColor.label
+        // 根据游戏模式选择对应的棋子图片
+        let imageSuffix: String
+        switch gameMode {
+        case .twoPlayer:
+            imageSuffix = "_1"  // 人間モード：hero_o_1.png, hero_x_1.png
+        case .vsAI:
+            imageSuffix = "_2"  // AIモード：hero_o_2.png, hero_x_2.png
+        case .vsAIGod:
+            imageSuffix = "_3"  // AIゴッドモード：hero_o_3.png, hero_x_3.png
+        }
         
-        if mark == "○" {
-            let circle = SKShapeNode(circleOfRadius: radius)
-            circle.strokeColor = markColor
-            circle.fillColor = UIColor.clear
-            circle.lineWidth = 5
-            circle.lineCap = .round
-            markNode.addChild(circle)
-        } else {
-            let path = UIBezierPath()
-            let offset = radius * 0.9
-            path.move(to: CGPoint(x: -offset, y: -offset))
-            path.addLine(to: CGPoint(x: offset, y: offset))
-            path.move(to: CGPoint(x: offset, y: -offset))
-            path.addLine(to: CGPoint(x: -offset, y: offset))
+        // 使用图片代替绘制
+        let imageName = (mark == "○") ? "hero_o\(imageSuffix)" : "hero_x\(imageSuffix)"
+        if let heroImage = UIImage(named: imageName) {
+            let heroTexture = SKTexture(image: heroImage)
+            let heroSprite = SKSpriteNode(texture: heroTexture)
             
-            let cross = SKShapeNode(path: path.cgPath)
-            cross.strokeColor = markColor
-            cross.lineWidth = 5
-            cross.lineCap = .round
-            cross.lineJoin = .round
-            markNode.addChild(cross)
+            // 根据cellSize调整大小（棋盘外稍小一些）
+            let maxSize = cellSize * 0.6  // 棋盘外稍小
+            let scale = maxSize / max(heroImage.size.width, heroImage.size.height)
+            heroSprite.setScale(scale)
+            
+            markNode.addChild(heroSprite)
+        } else {
+            // 如果图片不存在，使用绘制的方式作为后备
+            let radius = cellSize / 2 * (1 - GameConstants.markPaddingRatio) * 0.7  // 稍小一些
+            let markColor = UIColor.label
+            
+            if mark == "○" {
+                let circle = SKShapeNode(circleOfRadius: radius)
+                circle.strokeColor = markColor
+                circle.fillColor = UIColor.clear
+                circle.lineWidth = 5
+                circle.lineCap = .round
+                markNode.addChild(circle)
+            } else {
+                let path = UIBezierPath()
+                let offset = radius * 0.9
+                path.move(to: CGPoint(x: -offset, y: -offset))
+                path.addLine(to: CGPoint(x: offset, y: offset))
+                path.move(to: CGPoint(x: offset, y: -offset))
+                path.addLine(to: CGPoint(x: -offset, y: offset))
+                
+                let cross = SKShapeNode(path: path.cgPath)
+                cross.strokeColor = markColor
+                cross.lineWidth = 5
+                cross.lineCap = .round
+                cross.lineJoin = .round
+                markNode.addChild(cross)
+            }
         }
         
         markNode.alpha = 0
@@ -884,7 +725,7 @@ class GameScene: SKScene {
     }
 
     /// 检查游戏状态（包括棋盘外棋子）
-    private func checkGameStateWithOutside() {
+    internal func checkGameStateWithOutside() {
         // 检查包括棋盘外棋子的获胜
         if let winner = gameLogic.checkWinnerWithOutside() {
             gameLogic.setGameState(.won(winner))
@@ -916,109 +757,273 @@ class GameScene: SKScene {
         }
     }
     
-    /// 处理长按事件（缩小棋盘）
-    private func handleLongPress(at location: CGPoint) {
-        guard gameMode == .vsAIGod && gameLogic.gameState == .playing else { return }
-        
-        // 检查是否长按在格子上
-        for row in 0..<GameConstants.boardSize {
-            for col in 0..<GameConstants.boardSize {
-                let index = row * GameConstants.boardSize + col
-                let x = offsetX + CGFloat(col) * cellSize
-                let y = offsetY + CGFloat(row) * cellSize
-                
-                if location.x > x && location.x < x + cellSize &&
-                   location.y > y && location.y < y + cellSize {
-                    
-                    // 只能移除空格子
-                    if gameLogic.isEmpty(at: index) && !gameLogic.isCellRemoved(at: index) {
-                        removeCell(at: index)
-                        return
-                    }
-                }
-            }
-        }
-    }
-    
     /// 移除格子（缩小棋盘）
-    private func removeCell(at index: Int) {
+    internal func removeCell(at index: Int) {
         guard gameLogic.removeCell(at: index) else { return }
         
         // 更新UI：隐藏被移除的格子
-        updateBoardUI()
-    }
-    
-    /// 获取被移除的格子集合
-    private func getRemovedCells() -> Set<Int> {
-        return gameLogic.getRemovedCells()
-    }
-    
-    /// 更新棋盘UI（隐藏被移除的格子）
-    private func updateBoardUI() {
-        // 重新绘制棋盘，隐藏被移除的格子
-        // 移除旧的棋盘节点（简化处理，重新绘制）
         setupGame()
     }
     
     /// AIゴッド模式：AI下棋（可以在棋盘外放置或缩小棋盘）
-    private func makeAIGodMove() {
+    internal func makeAIGodMove() {
         guard gameLogic.gameState == .playing,
               let aiEngine = aiEngine,
               gameLogic.currentPlayer == aiEngine.aiPlayer else {
             return
         }
         
-        // 简单策略：优先在棋盘内下棋，如果棋盘满了或需要防守，则在棋盘外放置
-        let board = (0..<GameConstants.totalCells).map { gameLogic.getMark(at: $0) }
+        let boardSize = getCurrentBoardSize()
+        let totalCells = boardSize * boardSize
         
-        // 先尝试在棋盘内下棋
-        if let bestMove = aiEngine.findBestMove(board: board) {
-            let row = bestMove / GameConstants.boardSize
-            let col = bestMove % GameConstants.boardSize
-            if !gameLogic.isCellRemoved(at: bestMove) && gameLogic.isEmpty(at: bestMove) {
+        // 获取当前棋盘状态（排除被移除的格子）
+        var board: [String] = []
+        for i in 0..<totalCells {
+            if gameLogic.isCellRemoved(at: i) {
+                board.append("REMOVED") // 标记为已移除，AI不会选择
+            } else {
+                board.append(gameLogic.getMark(at: i))
+            }
+        }
+        
+        // 策略1：优先在棋盘内下棋
+        // 创建一个临时棋盘，将已移除的格子标记为空，让AI可以评估
+        let tempBoard = board.map { $0 == "REMOVED" ? "" : $0 }
+        if let bestMove = aiEngine.findBestMove(board: tempBoard) {
+            // 检查这个位置是否有效（未被移除且为空）
+            if bestMove < totalCells && 
+               !gameLogic.isCellRemoved(at: bestMove) && 
+               gameLogic.isEmpty(at: bestMove) {
+                let row = bestMove / boardSize
+                let col = bestMove % boardSize
                 makeMove(row: row, col: col, index: bestMove)
                 return
             }
         }
         
-        // 如果棋盘内没有好位置，在棋盘外随机放置
-        let outsidePositions = ["top-0", "top-1", "top-2", "bottom-0", "bottom-1", "bottom-2",
-                                "left-0", "left-1", "left-2", "right-0", "right-1", "right-2"]
+        // 策略2：检查是否需要在棋盘外放置以阻止玩家获胜
+        if let blockingPosition = findBlockingOutsidePosition(boardSize: boardSize) {
+            placeOutsideMark(at: blockingPosition)
+            return
+        }
+        
+        // 策略3：检查是否可以在棋盘外放置以形成获胜
+        if let winningPosition = findWinningOutsidePosition(boardSize: boardSize) {
+            placeOutsideMark(at: winningPosition)
+            return
+        }
+        
+        // 策略4：在棋盘外随机放置（作为最后手段）
+        let outsidePositions = generateOutsidePositions(boardSize: boardSize)
         let availableOutside = outsidePositions.filter { gameLogic.getOutsideMark(at: $0) == "" }
         if let randomPosition = availableOutside.randomElement() {
             placeOutsideMark(at: randomPosition)
         }
     }
     
-    /// 重置游戏
-    private func resetGame() {
-        gameLogic.reset()
-        // 重置缩放标志，初始状态不显示隐藏棋盘
-        hasScaled = false
-        setupGame()
+    /// 生成棋盘外位置列表（动态）
+    /// - Parameter boardSize: 当前棋盘大小
+    /// - Returns: 棋盘外位置标识数组
+    private func generateOutsidePositions(boardSize: Int) -> [String] {
+        var positions: [String] = []
+        for i in 0..<boardSize {
+            positions.append("top-\(i)")
+            positions.append("bottom-\(i)")
+            positions.append("left-\(i)")
+            positions.append("right-\(i)")
+        }
+        return positions
+    }
+    
+    /// 查找需要阻止玩家获胜的棋盘外位置
+    /// - Parameter boardSize: 当前棋盘大小
+    /// - Returns: 需要放置的位置标识，如果没有则返回nil
+    private func findBlockingOutsidePosition(boardSize: Int) -> String? {
+        let humanPlayer = aiEngine?.humanPlayer ?? "○"
         
-        // AI模式下，如果AI先手，自动下第一步
-        if (gameMode == .vsAI || gameMode == .vsAIGod),
-           let aiEngine = aiEngine,
-           gameLogic.currentPlayer == aiEngine.aiPlayer {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                if self.gameMode == .vsAIGod {
-                    self.makeAIGodMove()
-                } else {
-                self.makeAIMove()
+        // 检查所有可能的获胜线
+        for line in gameLogic.getWinningLines() {
+            guard line.count == 3 else { continue }
+            
+            let pos0 = line[0]
+            let pos1 = line[1]
+            let pos2 = line[2]
+            
+            let row0 = pos0 / boardSize
+            let col0 = pos0 % boardSize
+            let row1 = pos1 / boardSize
+            let col1 = pos1 % boardSize
+            let row2 = pos2 / boardSize
+            let col2 = pos2 % boardSize
+            
+            let mark0 = gameLogic.getMark(at: pos0)
+            let mark1 = gameLogic.getMark(at: pos1)
+            let mark2 = gameLogic.getMark(at: pos2)
+            
+            // 检查是否是横线（同一行）
+            if row0 == row1 && row1 == row2 {
+                // 检查上方棋盘外位置
+                let top0 = gameLogic.getOutsideMark(at: "top-\(col0)")
+                let top1 = gameLogic.getOutsideMark(at: "top-\(col1)")
+                let top2 = gameLogic.getOutsideMark(at: "top-\(col2)")
+                
+                // 检查这6个位置（3个棋盘内 + 3个上方棋盘外）中玩家是否有2个
+                let marks = [mark0, mark1, mark2, top0, top1, top2]
+                let humanCount = marks.filter { $0 == humanPlayer }.count
+                if humanCount == 2 {
+                    if top0 == "" { return "top-\(col0)" }
+                    if top1 == "" { return "top-\(col1)" }
+                    if top2 == "" { return "top-\(col2)" }
+                }
+                
+                // 检查下方棋盘外位置
+                let bottom0 = gameLogic.getOutsideMark(at: "bottom-\(col0)")
+                let bottom1 = gameLogic.getOutsideMark(at: "bottom-\(col1)")
+                let bottom2 = gameLogic.getOutsideMark(at: "bottom-\(col2)")
+                
+                let marksBottom = [mark0, mark1, mark2, bottom0, bottom1, bottom2]
+                let humanCountBottom = marksBottom.filter { $0 == humanPlayer }.count
+                if humanCountBottom == 2 {
+                    if bottom0 == "" { return "bottom-\(col0)" }
+                    if bottom1 == "" { return "bottom-\(col1)" }
+                    if bottom2 == "" { return "bottom-\(col2)" }
+                }
+            }
+            
+            // 检查是否是竖线（同一列）
+            if col0 == col1 && col1 == col2 {
+                // 检查左侧棋盘外位置
+                let left0 = gameLogic.getOutsideMark(at: "left-\(row0)")
+                let left1 = gameLogic.getOutsideMark(at: "left-\(row1)")
+                let left2 = gameLogic.getOutsideMark(at: "left-\(row2)")
+                
+                let marksLeft = [mark0, mark1, mark2, left0, left1, left2]
+                let humanCountLeft = marksLeft.filter { $0 == humanPlayer }.count
+                if humanCountLeft == 2 {
+                    if left0 == "" { return "left-\(row0)" }
+                    if left1 == "" { return "left-\(row1)" }
+                    if left2 == "" { return "left-\(row2)" }
+                }
+                
+                // 检查右侧棋盘外位置
+                let right0 = gameLogic.getOutsideMark(at: "right-\(row0)")
+                let right1 = gameLogic.getOutsideMark(at: "right-\(row1)")
+                let right2 = gameLogic.getOutsideMark(at: "right-\(row2)")
+                
+                let marksRight = [mark0, mark1, mark2, right0, right1, right2]
+                let humanCountRight = marksRight.filter { $0 == humanPlayer }.count
+                if humanCountRight == 2 {
+                    if right0 == "" { return "right-\(row0)" }
+                    if right1 == "" { return "right-\(row1)" }
+                    if right2 == "" { return "right-\(row2)" }
+                }
             }
         }
+        
+        return nil
+    }
+    
+    /// 查找可以形成获胜的棋盘外位置
+    /// - Parameter boardSize: 当前棋盘大小
+    /// - Returns: 可以获胜的位置标识，如果没有则返回nil
+    private func findWinningOutsidePosition(boardSize: Int) -> String? {
+        guard let aiEngine = aiEngine else { return nil }
+        let aiPlayer = aiEngine.aiPlayer
+        
+        // 检查所有可能的获胜线
+        for line in gameLogic.getWinningLines() {
+            guard line.count == 3 else { continue }
+            
+            let pos0 = line[0]
+            let pos1 = line[1]
+            let pos2 = line[2]
+            
+            let row0 = pos0 / boardSize
+            let col0 = pos0 % boardSize
+            let row1 = pos1 / boardSize
+            let col1 = pos1 % boardSize
+            let row2 = pos2 / boardSize
+            let col2 = pos2 % boardSize
+            
+            let mark0 = gameLogic.getMark(at: pos0)
+            let mark1 = gameLogic.getMark(at: pos1)
+            let mark2 = gameLogic.getMark(at: pos2)
+            
+            // 检查是否是横线（同一行）
+            if row0 == row1 && row1 == row2 {
+                // 检查上方棋盘外位置
+                let top0 = gameLogic.getOutsideMark(at: "top-\(col0)")
+                let top1 = gameLogic.getOutsideMark(at: "top-\(col1)")
+                let top2 = gameLogic.getOutsideMark(at: "top-\(col2)")
+                
+                let marks = [mark0, mark1, mark2, top0, top1, top2]
+                let aiCount = marks.filter { $0 == aiPlayer }.count
+                if aiCount == 2 {
+                    if top0 == "" { return "top-\(col0)" }
+                    if top1 == "" { return "top-\(col1)" }
+                    if top2 == "" { return "top-\(col2)" }
+                }
+                
+                // 检查下方棋盘外位置
+                let bottom0 = gameLogic.getOutsideMark(at: "bottom-\(col0)")
+                let bottom1 = gameLogic.getOutsideMark(at: "bottom-\(col1)")
+                let bottom2 = gameLogic.getOutsideMark(at: "bottom-\(col2)")
+                
+                let marksBottom = [mark0, mark1, mark2, bottom0, bottom1, bottom2]
+                let aiCountBottom = marksBottom.filter { $0 == aiPlayer }.count
+                if aiCountBottom == 2 {
+                    if bottom0 == "" { return "bottom-\(col0)" }
+                    if bottom1 == "" { return "bottom-\(col1)" }
+                    if bottom2 == "" { return "bottom-\(col2)" }
+                }
+            }
+            
+            // 检查是否是竖线（同一列）
+            if col0 == col1 && col1 == col2 {
+                // 检查左侧棋盘外位置
+                let left0 = gameLogic.getOutsideMark(at: "left-\(row0)")
+                let left1 = gameLogic.getOutsideMark(at: "left-\(row1)")
+                let left2 = gameLogic.getOutsideMark(at: "left-\(row2)")
+                
+                let marksLeft = [mark0, mark1, mark2, left0, left1, left2]
+                let aiCountLeft = marksLeft.filter { $0 == aiPlayer }.count
+                if aiCountLeft == 2 {
+                    if left0 == "" { return "left-\(row0)" }
+                    if left1 == "" { return "left-\(row1)" }
+                    if left2 == "" { return "left-\(row2)" }
+                }
+                
+                // 检查右侧棋盘外位置
+                let right0 = gameLogic.getOutsideMark(at: "right-\(row0)")
+                let right1 = gameLogic.getOutsideMark(at: "right-\(row1)")
+                let right2 = gameLogic.getOutsideMark(at: "right-\(row2)")
+                
+                let marksRight = [mark0, mark1, mark2, right0, right1, right2]
+                let aiCountRight = marksRight.filter { $0 == aiPlayer }.count
+                if aiCountRight == 2 {
+                    if right0 == "" { return "right-\(row0)" }
+                    if right1 == "" { return "right-\(row1)" }
+                    if right2 == "" { return "right-\(row2)" }
+                }
+            }
         }
+        
+        return nil
+    }
+    
+    /// 重置游戏
+    internal func resetGame() {
+        // 使用Handler重置游戏
+        currentHandler?.resetGame(in: self)
     }
     
     // MARK: - UI 更新
     /// 显示游戏结果
     /// - Parameter message: 结果消息
-    private func showResult(_ message: String) {
+    internal func showResult(_ message: String) {
         // 移除状态标签和之前的结果
         statusLabel?.removeFromParent()
         resultLabel?.removeFromParent()
-        resetButton?.removeFromParent()
         
         let currentBoardSize = getCurrentBoardSize()
         let boardBottom = offsetY + cellSize * CGFloat(currentBoardSize)
@@ -1031,16 +1036,11 @@ class GameScene: SKScene {
             yPosition: boardBottom + 60
         )
         
-        // 添加重置按钮（黑白简洁风格）
-        resetButton = UIFactory.createResetButton(
-            in: self,
-            sceneSize: size,
-            yPosition: boardBottom + 140
-        )
+        // 注意：resetButton已经在setupGame中创建，不需要重新创建
     }
     
     /// 更新状态标签（显示当前玩家）
-    private func updateStatusLabel() {
+    internal func updateStatusLabel() {
         statusLabel?.removeFromParent()
         
         var statusText = "\(gameLogic.currentPlayer) のターン"
@@ -1054,12 +1054,7 @@ class GameScene: SKScene {
             statusText = "AIゴッドのターン..."
         }
         
-        // AIゴッド模式：显示当前棋盘大小
-        if gameMode == .vsAIGod {
-            let boardSize = getCurrentBoardSize()
-            statusText += " (\(boardSize)×\(boardSize))"
-        }
-        
+        // 所有模式使用统一的样式
         statusLabel = UIFactory.createStatusLabel(
             in: self,
             text: statusText,

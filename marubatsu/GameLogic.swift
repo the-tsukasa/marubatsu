@@ -236,6 +236,12 @@ class GameLogic {
         gameState = state
     }
     
+    /// 设置当前玩家（用于AIゴッド模式的外部调用）
+    /// - Parameter player: 新的当前玩家标记（"○" 或 "×"）
+    func setCurrentPlayer(_ player: String) {
+        currentPlayer = player
+    }
+    
     // MARK: - AIゴッド模式特殊方法
     /// 在棋盘外放置棋子（AIゴッド模式）
     /// - Parameters:
@@ -296,86 +302,75 @@ class GameLogic {
         // - left-0, left-1, ..., left-(boardSize-1): 对应棋盘各行的左侧
         // - right-0, right-1, ..., right-(boardSize-1): 对应棋盘各行的右侧
         
-        // 检查横线（可能包含上方或下方棋盘外棋子）
-        for row in 0..<boardSize {
-            let col0 = row * GameConstants.boardSize
-            let col1 = row * GameConstants.boardSize + 1
-            let col2 = row * GameConstants.boardSize + 2
+        // 遍历所有可能的获胜线
+        for line in winningLines {
+            // 获取这条线上的三个位置
+            let pos0 = line[0]
+            let pos1 = line[1]
+            let pos2 = line[2]
             
-            let mark0 = board[col0]
-            let mark1 = board[col1]
-            let mark2 = board[col2]
+            // 计算这些位置对应的行列
+            let row0 = pos0 / boardSize
+            let col0 = pos0 % boardSize
+            let row1 = pos1 / boardSize
+            let col1 = pos1 % boardSize
+            let row2 = pos2 / boardSize
+            let col2 = pos2 % boardSize
             
-            // 标准横线
+            // 获取棋盘内的标记
+            let mark0 = board[pos0]
+            let mark1 = board[pos1]
+            let mark2 = board[pos2]
+            
+            // 检查标准三连（棋盘内）
             if mark0 != "" && mark0 == mark1 && mark1 == mark2 {
                 return mark0
             }
             
-            // 上方棋盘外 + 棋盘内两个
-            let top0 = outsideMarks["top-0"] ?? ""
-            let top1 = outsideMarks["top-1"] ?? ""
-            let top2 = outsideMarks["top-2"] ?? ""
-            
-            if top0 != "" && top0 == mark1 && mark1 == mark2 { return top0 }
-            if mark0 != "" && mark0 == top1 && top1 == mark2 { return mark0 }
-            if mark0 != "" && mark0 == mark1 && mark1 == top2 { return mark0 }
-            
-            // 下方棋盘外 + 棋盘内两个
-            let bottom0 = outsideMarks["bottom-0"] ?? ""
-            let bottom1 = outsideMarks["bottom-1"] ?? ""
-            let bottom2 = outsideMarks["bottom-2"] ?? ""
-            
-            if bottom0 != "" && bottom0 == mark1 && mark1 == mark2 { return bottom0 }
-            if mark0 != "" && mark0 == bottom1 && bottom1 == mark2 { return mark0 }
-            if mark0 != "" && mark0 == mark1 && mark1 == bottom2 { return mark0 }
-        }
-        
-        // 检查竖线（可能包含左侧或右侧棋盘外棋子）
-        for col in 0..<boardSize {
-            let row0 = col
-            let row1 = col + boardSize
-            let row2 = col + boardSize * 2
-            
-            let mark0 = board[row0]
-            let mark1 = board[row1]
-            let mark2 = board[row2]
-            
-            // 标准竖线
-            if mark0 != "" && mark0 == mark1 && mark1 == mark2 {
-                return mark0
+            // 检查横线（可能包含上方或下方棋盘外棋子）
+            if row0 == row1 && row1 == row2 {
+                // 上方棋盘外位置
+                let top0 = outsideMarks["top-\(col0)"] ?? ""
+                let top1 = outsideMarks["top-\(col1)"] ?? ""
+                let top2 = outsideMarks["top-\(col2)"] ?? ""
+                
+                // 下方棋盘外位置
+                let bottom0 = outsideMarks["bottom-\(col0)"] ?? ""
+                let bottom1 = outsideMarks["bottom-\(col1)"] ?? ""
+                let bottom2 = outsideMarks["bottom-\(col2)"] ?? ""
+                
+                // 检查各种组合：上方/下方 + 棋盘内两个
+                if top0 != "" && top0 == mark1 && mark1 == mark2 { return top0 }
+                if mark0 != "" && mark0 == top1 && top1 == mark2 { return mark0 }
+                if mark0 != "" && mark0 == mark1 && mark1 == top2 { return mark0 }
+                
+                if bottom0 != "" && bottom0 == mark1 && mark1 == mark2 { return bottom0 }
+                if mark0 != "" && mark0 == bottom1 && bottom1 == mark2 { return mark0 }
+                if mark0 != "" && mark0 == mark1 && mark1 == bottom2 { return mark0 }
             }
             
-            // 左侧棋盘外 + 棋盘内两个
-            let left0 = outsideMarks["left-0"] ?? ""
-            let left1 = outsideMarks["left-1"] ?? ""
-            let left2 = outsideMarks["left-2"] ?? ""
-            
-            if left0 != "" && left0 == mark1 && mark1 == mark2 { return left0 }
-            if mark0 != "" && mark0 == left1 && left1 == mark2 { return mark0 }
-            if mark0 != "" && mark0 == mark1 && mark1 == left2 { return mark0 }
-            
-            // 右侧棋盘外 + 棋盘内两个
-            let right0 = outsideMarks["right-0"] ?? ""
-            let right1 = outsideMarks["right-1"] ?? ""
-            let right2 = outsideMarks["right-2"] ?? ""
-            
-            if right0 != "" && right0 == mark1 && mark1 == mark2 { return right0 }
-            if mark0 != "" && mark0 == right1 && right1 == mark2 { return mark0 }
-            if mark0 != "" && mark0 == mark1 && mark1 == right2 { return mark0 }
+            // 检查竖线（可能包含左侧或右侧棋盘外棋子）
+            if col0 == col1 && col1 == col2 {
+                // 左侧棋盘外位置
+                let left0 = outsideMarks["left-\(row0)"] ?? ""
+                let left1 = outsideMarks["left-\(row1)"] ?? ""
+                let left2 = outsideMarks["left-\(row2)"] ?? ""
+                
+                // 右侧棋盘外位置
+                let right0 = outsideMarks["right-\(row0)"] ?? ""
+                let right1 = outsideMarks["right-\(row1)"] ?? ""
+                let right2 = outsideMarks["right-\(row2)"] ?? ""
+                
+                // 检查各种组合：左侧/右侧 + 棋盘内两个
+                if left0 != "" && left0 == mark1 && mark1 == mark2 { return left0 }
+                if mark0 != "" && mark0 == left1 && left1 == mark2 { return mark0 }
+                if mark0 != "" && mark0 == mark1 && mark1 == left2 { return mark0 }
+                
+                if right0 != "" && right0 == mark1 && mark1 == mark2 { return right0 }
+                if mark0 != "" && mark0 == right1 && right1 == mark2 { return mark0 }
+                if mark0 != "" && mark0 == mark1 && mark1 == right2 { return mark0 }
+            }
         }
-        
-        // 检查斜线（对角线）
-        // 主对角线：0, 4, 8
-        let diag0 = board[0]
-        let diag1 = board[4]
-        let diag2 = board[8]
-        if diag0 != "" && diag0 == diag1 && diag1 == diag2 { return diag0 }
-        
-        // 副对角线：2, 4, 6
-        let diag20 = board[2]
-        let diag21 = board[4]
-        let diag22 = board[6]
-        if diag20 != "" && diag20 == diag21 && diag21 == diag22 { return diag20 }
         
         return nil
     }
@@ -425,6 +420,12 @@ class GameLogic {
     /// - Returns: 当前棋盘大小
     func getBoardSize() -> Int {
         return boardSize
+    }
+    
+    /// 获取所有可能的获胜线（AIゴッド模式使用）
+    /// - Returns: 获胜线数组
+    func getWinningLines() -> [[Int]] {
+        return winningLines
     }
 }
 

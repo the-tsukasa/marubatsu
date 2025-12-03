@@ -14,19 +14,29 @@ class UIFactory {
     ///   - offsetY: 棋盘Y偏移量
     ///   - boardSize: 棋盘大小（默认3x3）
     ///   - removedCells: 被移除的格子索引集合（AIゴッド模式）
+    ///   - isGodMode: 是否是AIゴッド模式（用于绘制被移除的格子）
     static func drawBoard(
         in scene: SKScene,
         cellSize: CGFloat,
         offsetX: CGFloat,
         offsetY: CGFloat,
         boardSize: Int = GameConstants.boardSize,
-        removedCells: Set<Int> = []
+        removedCells: Set<Int> = [],
+        isGodMode: Bool = false
     ) {
+        // 移除旧的棋盘节点（通过 name 属性标识）
+        scene.children.forEach { node in
+            if let name = node.name, name.hasPrefix("board_") {
+                node.removeFromParent()
+            }
+        }
+        
         let boardWidth = cellSize * CGFloat(boardSize)
         let boardHeight = cellSize * CGFloat(boardSize)
         let padding: CGFloat = 32
         let cornerRadius: CGFloat = 20
         
+        // 所有模式统一：绘制棋盘背景和阴影（半透明）
         // 精致的阴影效果（非常微妙）
         let shadow = SKShapeNode(rect: CGRect(
             x: offsetX - padding + 2,
@@ -37,23 +47,26 @@ class UIFactory {
         shadow.fillColor = UIColor.black.withAlphaComponent(0.08)
         shadow.strokeColor = UIColor.clear
         shadow.zPosition = -2
+        shadow.name = "board_shadow"  // 添加标识
         scene.addChild(shadow)
         
-        // 棋盘背景（纯白/纯黑，根据系统主题）
+        // 棋盘背景（半透明白色，所有模式统一）
         let boardBackground = SKShapeNode(rect: CGRect(
             x: offsetX - padding,
             y: offsetY - padding,
             width: boardWidth + padding * 2,
             height: boardHeight + padding * 2
         ), cornerRadius: cornerRadius)
-        boardBackground.fillColor = UIColor.systemBackground
+        boardBackground.fillColor = UIColor.white.withAlphaComponent(0.5)
         boardBackground.strokeColor = UIColor.label.withAlphaComponent(0.15)
         boardBackground.lineWidth = 1
         boardBackground.zPosition = -1
+        boardBackground.name = "board_background"  // 添加标识
         scene.addChild(boardBackground)
         
-        // 精致的网格线（黑白风格）
+        // 精致的网格线（所有模式统一样式）
         let lineColor = UIColor.label.withAlphaComponent(0.25)
+        let lineWidth: CGFloat = 2
         
         // 垂直线
         for i in 1..<boardSize {
@@ -64,9 +77,10 @@ class UIFactory {
             
             let line = SKShapeNode(path: path.cgPath)
             line.strokeColor = lineColor
-            line.lineWidth = 2
+            line.lineWidth = lineWidth
             line.lineCap = .round
             line.zPosition = 1
+            line.name = "board_line"  // 添加标识
             scene.addChild(line)
         }
         
@@ -79,9 +93,10 @@ class UIFactory {
             
             let line = SKShapeNode(path: path.cgPath)
             line.strokeColor = lineColor
-            line.lineWidth = 2
+            line.lineWidth = lineWidth
             line.lineCap = .round
             line.zPosition = 1
+            line.name = "board_line"  // 添加标识
             scene.addChild(line)
         }
         
@@ -104,6 +119,7 @@ class UIFactory {
                 removedCell.strokeColor = UIColor.label.withAlphaComponent(0.05)
                 removedCell.lineWidth = 1
                 removedCell.zPosition = 0
+                removedCell.name = "board_removed_cell"  // 添加标识
                 scene.addChild(removedCell)
             }
         }
@@ -119,6 +135,7 @@ class UIFactory {
     ///   - cellSize: 格子尺寸
     ///   - offsetX: 棋盘X偏移量
     ///   - offsetY: 棋盘Y偏移量
+    ///   - gameMode: 游戏模式（用于选择对应的棋子图片）
     /// - Returns: 创建的标记节点
     @discardableResult
     static func drawMark(
@@ -128,42 +145,68 @@ class UIFactory {
         mark: String,
         cellSize: CGFloat,
         offsetX: CGFloat,
-        offsetY: CGFloat
+        offsetY: CGFloat,
+        gameMode: GameMode = .twoPlayer
     ) -> SKNode {
         let centerX = offsetX + CGFloat(col) * cellSize + cellSize / 2
         let centerY = offsetY + CGFloat(row) * cellSize + cellSize / 2
-        let radius = cellSize / 2 * (1 - GameConstants.markPaddingRatio)
         
         let markNode = SKNode()
         markNode.position = CGPoint(x: centerX, y: centerY)
         markNode.zPosition = 5
         
-        // 使用纯黑色
-        let markColor = UIColor.label
+        // 根据游戏模式选择对应的棋子图片
+        let imageSuffix: String
+        switch gameMode {
+        case .twoPlayer:
+            imageSuffix = "_1"  // 人間モード：hero_o_1.png, hero_x_1.png
+        case .vsAI:
+            imageSuffix = "_2"  // AIモード：hero_o_2.png, hero_x_2.png
+        case .vsAIGod:
+            imageSuffix = "_3"  // AIゴッドモード：hero_o_3.png, hero_x_3.png
+        }
         
-        if mark == "○" {
-            // 绘制精致的圆形
-            let circle = SKShapeNode(circleOfRadius: radius)
-            circle.strokeColor = markColor
-            circle.fillColor = UIColor.clear
-            circle.lineWidth = 6
-            circle.lineCap = .round
-            markNode.addChild(circle)
-        } else {
-            // 绘制精致的×
-            let path = UIBezierPath()
-            let offset = radius * 0.9
-            path.move(to: CGPoint(x: -offset, y: -offset))
-            path.addLine(to: CGPoint(x: offset, y: offset))
-            path.move(to: CGPoint(x: offset, y: -offset))
-            path.addLine(to: CGPoint(x: -offset, y: offset))
+        // 使用图片代替绘制
+        let imageName = (mark == "○") ? "hero_o\(imageSuffix)" : "hero_x\(imageSuffix)"
+        if let heroImage = UIImage(named: imageName) {
+            let heroTexture = SKTexture(image: heroImage)
+            let heroSprite = SKSpriteNode(texture: heroTexture)
             
-            let cross = SKShapeNode(path: path.cgPath)
-            cross.strokeColor = markColor
-            cross.lineWidth = 6
-            cross.lineCap = .round
-            cross.lineJoin = .round
-            markNode.addChild(cross)
+            // 根据cellSize调整大小
+            let maxSize = cellSize * 0.9  // 留出一些边距
+            let scale = maxSize / max(heroImage.size.width, heroImage.size.height)
+            heroSprite.setScale(scale)
+            
+            markNode.addChild(heroSprite)
+        } else {
+            // 如果图片不存在，使用绘制的方式作为后备
+            let radius = cellSize / 2 * (1 - GameConstants.markPaddingRatio)
+            let markColor = UIColor.label
+            
+            if mark == "○" {
+                // 绘制精致的圆形
+                let circle = SKShapeNode(circleOfRadius: radius)
+                circle.strokeColor = markColor
+                circle.fillColor = UIColor.clear
+                circle.lineWidth = 6
+                circle.lineCap = .round
+                markNode.addChild(circle)
+            } else {
+                // 绘制精致的×
+                let path = UIBezierPath()
+                let offset = radius * 0.9
+                path.move(to: CGPoint(x: -offset, y: -offset))
+                path.addLine(to: CGPoint(x: offset, y: offset))
+                path.move(to: CGPoint(x: offset, y: -offset))
+                path.addLine(to: CGPoint(x: -offset, y: offset))
+                
+                let cross = SKShapeNode(path: path.cgPath)
+                cross.strokeColor = markColor
+                cross.lineWidth = 6
+                cross.lineCap = .round
+                cross.lineJoin = .round
+                markNode.addChild(cross)
+            }
         }
         
         // 精致的动画效果
@@ -180,7 +223,7 @@ class UIFactory {
     }
     
     // MARK: - 按钮创建
-    /// 创建返回按钮（黑白简洁风格）
+    /// 创建返回按钮（MENU）- 统一布局
     /// - Parameters:
     ///   - scene: 场景节点
     ///   - sceneSize: 场景尺寸
@@ -190,13 +233,13 @@ class UIFactory {
         in scene: SKScene,
         sceneSize: CGSize
     ) -> SKLabelNode {
-        let button = SKLabelNode(text: "戻る")
+        let button = SKLabelNode(text: "MENU")
         button.fontSize = GameConstants.buttonFontSize
         button.fontName = "Helvetica-Medium"
         button.fontColor = UIColor.label
         
         // 创建按钮背景（黑白风格）
-        let buttonWidth: CGFloat = 80
+        let buttonWidth: CGFloat = 100
         let buttonHeight: CGFloat = 44
         let buttonBackground = SKShapeNode(rect: CGRect(
             x: -buttonWidth / 2,
@@ -226,7 +269,7 @@ class UIFactory {
         
         button.addChild(shadow)
         button.addChild(buttonBackground)
-        // 按钮位置：左上角
+        // 按钮位置：左上角（统一布局）
         button.position = CGPoint(x: 60, y: sceneSize.height - 70)
         button.name = "backButton"
         button.zPosition = 100
@@ -292,7 +335,7 @@ class UIFactory {
         
         button.addChild(shadow)
         button.addChild(buttonBackground)
-        // 按钮位置
+        // 按钮位置：右上角（统一布局）
         button.position = CGPoint(x: sceneSize.width - 60, y: sceneSize.height - 70)
         button.name = "modeButton"
         button.zPosition = 100
@@ -305,18 +348,18 @@ class UIFactory {
     /// - Parameters:
     ///   - scene: 场景节点
     ///   - sceneSize: 场景尺寸
-    ///   - yPosition: Y坐标位置
+    ///   - yPosition: Y坐标位置（已废弃，统一使用底部位置80）
     /// - Returns: 创建的按钮节点
     @discardableResult
     static func createResetButton(
         in scene: SKScene,
         sceneSize: CGSize,
-        yPosition: CGFloat
+        yPosition: CGFloat = 80
     ) -> SKLabelNode {
-        let button = SKLabelNode(text: "もう一度")
-        button.fontSize = GameConstants.statusFontSize
-        button.fontName = "Helvetica-Light"
-        button.fontColor = UIColor.label.withAlphaComponent(0.6)
+        let button = SKLabelNode(text: "RESET")
+        button.fontSize = GameConstants.buttonFontSize
+        button.fontName = "Helvetica-Medium"
+        button.fontColor = UIColor.label
         // 让文字真正居中
         button.verticalAlignmentMode = .center
         button.horizontalAlignmentMode = .center
@@ -329,14 +372,15 @@ class UIFactory {
             width: buttonWidth,
             height: buttonHeight
         ), cornerRadius: 10)
-        buttonBackground.fillColor = UIColor.clear
+        buttonBackground.fillColor = UIColor.secondarySystemBackground
         buttonBackground.strokeColor = UIColor.label.withAlphaComponent(0.3)
         buttonBackground.lineWidth = 1
         buttonBackground.zPosition = -1
         
         button.addChild(buttonBackground)
-        button.position = CGPoint(x: sceneSize.width / 2, y: yPosition)
-        button.zPosition = 10
+        // 按钮位置：最底下（居中，统一布局）
+        button.position = CGPoint(x: sceneSize.width / 2, y: 80)
+        button.zPosition = 100
         button.name = "resetButton"
         scene.addChild(button)
         
@@ -395,6 +439,78 @@ class UIFactory {
         scene.addChild(label)
         
         return label
+    }
+    
+    // MARK: - AIゴッド模式按钮
+    /// 创建重置按钮（AIゴッド模式：RESET）
+    /// - Parameters:
+    ///   - scene: 场景节点
+    ///   - sceneSize: 场景尺寸
+    /// - Returns: 创建的按钮节点
+    @discardableResult
+    static func createResetButtonForGodMode(
+        in scene: SKScene,
+        sceneSize: CGSize
+    ) -> SKLabelNode {
+        // 使用与标准模式相同的样式
+        return createResetButton(in: scene, sceneSize: sceneSize)
+    }
+    
+    /// 创建菜单按钮（MENU）- 统一布局
+    /// - Parameters:
+    ///   - scene: 场景节点
+    ///   - sceneSize: 场景尺寸
+    /// - Returns: 创建的按钮节点
+    @discardableResult
+    static func createMenuButtonForGodMode(
+        in scene: SKScene,
+        sceneSize: CGSize
+    ) -> SKLabelNode {
+        let button = SKLabelNode(text: "MENU")
+        button.fontSize = GameConstants.buttonFontSize
+        button.fontName = "Helvetica-Bold"
+        button.fontColor = UIColor.white
+        
+        // 创建按钮背景（霓虹风格）
+        let buttonWidth: CGFloat = 120
+        let buttonHeight: CGFloat = 50
+        let buttonBackground = SKShapeNode(rect: CGRect(
+            x: -buttonWidth / 2,
+            y: -buttonHeight / 2,
+            width: buttonWidth,
+            height: buttonHeight
+        ), cornerRadius: 10)
+        
+        button.verticalAlignmentMode = .center
+        button.horizontalAlignmentMode = .center
+        
+        buttonBackground.fillColor = UIColor.systemPurple.withAlphaComponent(0.8)
+        buttonBackground.strokeColor = UIColor.magenta
+        buttonBackground.lineWidth = 2
+        buttonBackground.zPosition = -1
+        
+        // 发光效果
+        let glow = SKShapeNode(rect: CGRect(
+            x: -buttonWidth / 2 - 2,
+            y: -buttonHeight / 2 - 2,
+            width: buttonWidth + 4,
+            height: buttonHeight + 4
+        ), cornerRadius: 12)
+        glow.fillColor = UIColor.clear
+        glow.strokeColor = UIColor.magenta.withAlphaComponent(0.5)
+        glow.lineWidth = 3
+        glow.zPosition = -2
+        
+        button.addChild(glow)
+        button.addChild(buttonBackground)
+        
+        // 按钮位置：左上角（统一布局）
+        button.position = CGPoint(x: 60, y: sceneSize.height - 70)
+        button.name = "menuButton"
+        button.zPosition = 100
+        scene.addChild(button)
+        
+        return button
     }
 }
 

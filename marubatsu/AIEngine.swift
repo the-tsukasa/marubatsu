@@ -12,7 +12,7 @@ class AIEngine {
     let humanPlayer: String
     
     /// 获胜线组合（横、竖、斜）
-    private let winningLines = [
+    internal let winningLines = [
         [0,1,2], [3,4,5], [6,7,8],  // 横
         [0,3,6], [1,4,7], [2,5,8],  // 竖
         [0,4,8], [2,4,6]             // 斜
@@ -64,7 +64,7 @@ class AIEngine {
     ///   - player: 玩家标记
     ///   - board: 当前棋盘状态
     /// - Returns: 可以获胜的位置索引，如果没有则返回 nil
-    private func findWinningMove(for player: String, in board: [String]) -> Int? {
+    internal func findWinningMove(for player: String, in board: [String]) -> Int? {
         for line in winningLines {
             let marks = line.map { board[$0] }
             let playerCount = marks.filter { $0 == player }.count
