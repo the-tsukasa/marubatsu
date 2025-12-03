@@ -6,3 +6,5 @@ SwiftUI + SpriteKit 制作のシンプルな○×ゲーム。ウェルカム画�
 - `GameScene.swift`：盤面処理  
 - `AIEngine.swift`：AI／AIゴッド  
 -更新 README 测试 🧪-
+feature/readme-update
+
