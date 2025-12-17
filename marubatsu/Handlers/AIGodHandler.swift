@@ -37,17 +37,22 @@ class AIGodHandler: GameModeHandler {
             return
         }
         
-        // 获取当前棋盘状态（固定3x3）
-        let boardSize = GameConstants.boardSize
+        // 获取当前棋盘状态（动态获取实际棋盘大小）
+        let boardSize = scene.handlerGameLogic.getBoardSize()
         let totalCells = boardSize * boardSize
         let board = (0..<totalCells).map { scene.handlerGameLogic.getMark(at: $0) }
         
         // 检查是否是空棋盘（AI先手的第一手）
         let isEmptyBoard = board.allSatisfy { $0 == "" }
         
-        // AI先手第一手：直接选择中心位置（索引4），这是最強的位置，胜率最高
+        // AI先手第一手：直接选择中心位置（动态计算），这是最強的位置，胜率最高
         if isEmptyBoard {
-            handleMove(at: 4, in: scene)
+            let centerRow = boardSize / 2
+            let centerCol = boardSize / 2
+            let centerIndex = centerRow * boardSize + centerCol
+            if centerIndex < totalCells {
+                handleMove(at: centerIndex, in: scene)
+            }
             return
         }
         

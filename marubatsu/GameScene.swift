@@ -207,8 +207,8 @@ class GameScene: SKScene {
         // 设置背景（如果模式改变或首次设置）
         setupBackground()
         
-        // 绘制棋盘（所有模式都使用3x3固定大小）
-        let boardSize = GameConstants.boardSize
+        // 绘制棋盘（动态获取实际棋盘大小）
+        let boardSize = gameLogic.getBoardSize()
         let isGodMode = gameMode == .vsAIGod
         
         // 确保场景背景色是黑色（所有模式都使用黑色背景）
@@ -227,7 +227,7 @@ class GameScene: SKScene {
             offsetX: offsetX,
             offsetY: offsetY,
             boardSize: boardSize,
-            removedCells: [],
+            removedCells: gameLogic.getRemovedCells(),
             isGodMode: isGodMode
         )
         
@@ -272,10 +272,9 @@ class GameScene: SKScene {
     /// 设置机器人角色（所有模式）
     internal func setupHeroCharacters() {
         // 计算机器人位置（棋盘两侧）
-        let boardSize = GameConstants.boardSize
+        let boardSize = gameLogic.getBoardSize()
         let boardWidth = cellSize * CGFloat(boardSize)
         let boardHeight = cellSize * CGFloat(boardSize)
-        let boardCenterX = offsetX + boardWidth / 2
         let boardCenterY = offsetY + boardHeight / 2
         
         // 机器人大小（根据棋盘大小调整）
@@ -374,8 +373,8 @@ class GameScene: SKScene {
             return
         }
 
-        // 检测点击的格子（固定3x3）
-        let boardSize = GameConstants.boardSize
+        // 检测点击的格子（动态获取实际棋盘大小）
+        let boardSize = gameLogic.getBoardSize()
         for row in 0..<boardSize {
             for col in 0..<boardSize {
                 let index = row * boardSize + col
@@ -461,8 +460,8 @@ class GameScene: SKScene {
             return
         }
         
-        // 获取当前棋盘状态（固定3x3）
-        let boardSize = GameConstants.boardSize
+        // 获取当前棋盘状态（动态获取实际棋盘大小）
+        let boardSize = gameLogic.getBoardSize()
         let totalCells = boardSize * boardSize
         let board = (0..<totalCells).map { gameLogic.getMark(at: $0) }
         
@@ -475,9 +474,9 @@ class GameScene: SKScene {
     }
     
     // MARK: - 辅助方法
-    /// 获取当前棋盘大小（固定3x3）
+    /// 获取当前棋盘大小（动态获取）
     internal func getCurrentBoardSize() -> Int {
-        return GameConstants.boardSize
+        return gameLogic.getBoardSize()
     }
     
     /// 触发隐藏棋盘（双击上下空白区域后调用）
@@ -495,12 +494,6 @@ class GameScene: SKScene {
         let oldSize = getCurrentBoardSize()
         guard newSize != oldSize else { return }
         guard gameLogic.changeBoardSize(to: newSize) else { return }
-        
-        // 添加缩放动画反馈
-        let scaleAction = SKAction.sequence([
-            SKAction.scale(to: 1.05, duration: 0.1),
-            SKAction.scale(to: 1.0, duration: 0.1)
-        ])
         
         // 重新计算布局（基于新的棋盘大小）
         calculateLayout()

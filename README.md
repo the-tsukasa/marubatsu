@@ -1,11 +1,9 @@
 # Marubatsu
 
-SwiftUI + SpriteKit 制作のシンプルな○×ゲーム。ウェルカム画面、対局、AI 対戦を体験できます。
+SwiftUI + SpriteKit 制作的简单○×游戏。欢迎画面、对局、AI 对战可以体验。
 
-- `ContentView.swift`：画面切替  
-- `GameScene.swift`：盤面処理  
-- `AIEngine.swift`：AI／AIゴッド  
--更新 README 测试 🧪-
-feature/readme-update
-test
-test 2
+## 主要文件
+
+- `ContentView.swift`：画面切换  
+- `GameScene.swift`：棋盘处理  
+- `AIEngine.swift`：AI／AIゴッド

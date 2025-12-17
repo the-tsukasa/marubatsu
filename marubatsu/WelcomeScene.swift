@@ -383,8 +383,6 @@ class WelcomeScene: SKScene {
             ]))
         }
         
-        // 确保scale重置正确，因为Taisen逻辑可能用到scale计算，这里重新确保英雄scale一致
-        let heroScale = calculateScale(targetScreenPercentage: 0.32)
         // 注意：这里需要考虑 setupHeroNodes 里可能被 clamp 过的 scale
         // 为了安全起见，我们直接使用 node 当前的 scale (因为 setupHeroNodes 已经设置好了)
         // playDashEntry 内部是基于 node.xScale 相对计算的，所以不需要重置
