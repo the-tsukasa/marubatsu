@@ -14,10 +14,10 @@ SwiftUI と SpriteKit で作成した ○×ゲーム（三目並べ）です。
 ## 画面
 
 <p align="center">
+  <img src="marubatsu/marubatsu_demo_iphone17promax_004.png" width="22%" />
   <img src="marubatsu/marubatsu_demo_iphone17promax_001.png" width="22%" />
   <img src="marubatsu/marubatsu_demo_iphone17promax_002.png" width="22%" />
   <img src="marubatsu/marubatsu_demo_iphone17promax_003.png" width="22%" />
-  <img src="marubatsu/marubatsu_demo_iphone17promax_004.png" width="22%" />
 </p>
 
 <p align="center">
