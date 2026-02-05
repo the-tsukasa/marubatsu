@@ -13,16 +13,12 @@ class UIFactory {
     ///   - offsetX: 棋盘X偏移量
     ///   - offsetY: 棋盘Y偏移量
     ///   - boardSize: 棋盘大小（默认3x3）
-    ///   - removedCells: 被移除的格子索引集合（AIゴッド模式）
-    ///   - isGodMode: 是否是AIゴッド模式（用于绘制被移除的格子）
     static func drawBoard(
         in scene: SKScene,
         cellSize: CGFloat,
         offsetX: CGFloat,
         offsetY: CGFloat,
-        boardSize: Int = GameConstants.boardSize,
-        removedCells: Set<Int> = [],
-        isGodMode: Bool = false
+        boardSize: Int = GameConstants.boardSize
     ) {
         // 移除旧的棋盘节点（通过 name 属性标识）
         scene.children.forEach { node in
@@ -100,29 +96,6 @@ class UIFactory {
             scene.addChild(line)
         }
         
-        // AIゴッド模式：绘制被移除的格子（变灰显示）
-        if !removedCells.isEmpty {
-            for index in removedCells {
-                let row = index / GameConstants.boardSize
-                let col = index % GameConstants.boardSize
-                let x = offsetX + CGFloat(col) * cellSize
-                let y = offsetY + CGFloat(row) * cellSize
-                
-                // 绘制灰色半透明覆盖层
-                let removedCell = SKShapeNode(rect: CGRect(
-                    x: x,
-                    y: y,
-                    width: cellSize,
-                    height: cellSize
-                ))
-                removedCell.fillColor = UIColor.label.withAlphaComponent(0.1)
-                removedCell.strokeColor = UIColor.label.withAlphaComponent(0.05)
-                removedCell.lineWidth = 1
-                removedCell.zPosition = 0
-                removedCell.name = "board_removed_cell"  // 添加标识
-                scene.addChild(removedCell)
-            }
-        }
     }
     
     // MARK: - 标记绘制
@@ -441,78 +414,4 @@ class UIFactory {
         return label
     }
     
-    // MARK: - AIゴッド模式按钮
-    /// 创建重置按钮（AIゴッド模式：RESET）
-    /// - Parameters:
-    ///   - scene: 场景节点
-    ///   - sceneSize: 场景尺寸
-    /// - Returns: 创建的按钮节点
-    @discardableResult
-    static func createResetButtonForGodMode(
-        in scene: SKScene,
-        sceneSize: CGSize
-    ) -> SKLabelNode {
-        // 使用与标准模式相同的样式
-        return createResetButton(in: scene, sceneSize: sceneSize)
-    }
-    
-    /// 创建菜单按钮（MENU）- 统一布局
-    /// - Parameters:
-    ///   - scene: 场景节点
-    ///   - sceneSize: 场景尺寸
-    /// - Returns: 创建的按钮节点
-    @discardableResult
-    static func createMenuButtonForGodMode(
-        in scene: SKScene,
-        sceneSize: CGSize
-    ) -> SKLabelNode {
-        let button = SKLabelNode(text: "MENU")
-        button.fontSize = GameConstants.buttonFontSize
-        button.fontName = "Helvetica-Bold"
-        button.fontColor = UIColor.white
-        
-        // 创建按钮背景（霓虹风格）
-        let buttonWidth: CGFloat = 120
-        let buttonHeight: CGFloat = 50
-        let buttonBackground = SKShapeNode(rect: CGRect(
-            x: -buttonWidth / 2,
-            y: -buttonHeight / 2,
-            width: buttonWidth,
-            height: buttonHeight
-        ), cornerRadius: 10)
-        
-        button.verticalAlignmentMode = .center
-        button.horizontalAlignmentMode = .center
-        
-        buttonBackground.fillColor = UIColor.systemPurple.withAlphaComponent(0.8)
-        buttonBackground.strokeColor = UIColor.magenta
-        buttonBackground.lineWidth = 2
-        buttonBackground.zPosition = -1
-        
-        // 发光效果
-        let glow = SKShapeNode(rect: CGRect(
-            x: -buttonWidth / 2 - 2,
-            y: -buttonHeight / 2 - 2,
-            width: buttonWidth + 4,
-            height: buttonHeight + 4
-        ), cornerRadius: 12)
-        glow.fillColor = UIColor.clear
-        glow.strokeColor = UIColor.magenta.withAlphaComponent(0.5)
-        glow.lineWidth = 3
-        glow.zPosition = -2
-        
-        button.addChild(glow)
-        button.addChild(buttonBackground)
-        
-        // 按钮位置：左上角（统一布局）
-        button.position = CGPoint(x: 60, y: sceneSize.height - 70)
-        button.name = "menuButton"
-        button.zPosition = 100
-        scene.addChild(button)
-        
-        return button
-    }
 }
-
-
-

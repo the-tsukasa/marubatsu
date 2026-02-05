@@ -38,15 +38,5 @@ extension GameScene {
     
     // setupGame, getCurrentBoardSize, showResult, updateStatusLabel 已在GameScene中改为internal，可以直接访问
     
-    /// 取消长按定时器（供Handler调用）
-    func cancelLongPressTimer() {
-        longPressTimer?.invalidate()
-        longPressTimer = nil
-        longPressLocation = nil
-    }
-    
     // currentHandler已在GameScene中定义，可以直接访问
-    
-    // hasScaled, makeAIGodMove, checkGameStateWithOutside 已在GameScene中改为internal，可以直接访问
 }
-

@@ -30,33 +30,16 @@ class AIGodHandler: GameModeHandler {
     }
     
     func handleAITurn(in scene: GameScene) {
-        // AIゴッド模式使用更强的AI引擎
         guard scene.handlerGameLogic.gameState == .playing,
               let aiEngine = aiEngine,
               scene.handlerGameLogic.currentPlayer == aiEngine.aiPlayer else {
             return
         }
-        
-        // 获取当前棋盘状态（动态获取实际棋盘大小）
+
         let boardSize = scene.handlerGameLogic.getBoardSize()
         let totalCells = boardSize * boardSize
         let board = (0..<totalCells).map { scene.handlerGameLogic.getMark(at: $0) }
-        
-        // 检查是否是空棋盘（AI先手的第一手）
-        let isEmptyBoard = board.allSatisfy { $0 == "" }
-        
-        // AI先手第一手：直接选择中心位置（动态计算），这是最強的位置，胜率最高
-        if isEmptyBoard {
-            let centerRow = boardSize / 2
-            let centerCol = boardSize / 2
-            let centerIndex = centerRow * boardSize + centerCol
-            if centerIndex < totalCells {
-                handleMove(at: centerIndex, in: scene)
-            }
-            return
-        }
-        
-        // 获取AI最佳下棋位置（使用更强的AI算法）
+
         if let bestMove = aiEngine.findBestMove(board: board) {
             handleMove(at: bestMove, in: scene)
         }
@@ -109,4 +92,3 @@ class AIGodHandler: GameModeHandler {
         }
     }
 }
-

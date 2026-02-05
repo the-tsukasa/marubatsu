@@ -7,12 +7,6 @@ struct GameConstants {
     static let boardSize = 3
     /// 总格子数
     static let totalCells = 9
-    /// AIゴッド模式：最小棋盘大小
-    static let minBoardSize = 3
-    /// AIゴッド模式：最大棋盘大小（6x6）
-    static let maxBoardSize = 6
-    /// AIゴッド模式：最大总格子数（6x6 = 36）
-    static let maxTotalCells = 36
     /// 最小格子尺寸
     static let minCellSize: CGFloat = 80
     /// 最大格子尺寸
@@ -38,7 +32,7 @@ enum GameMode {
     case twoPlayer
     /// AI对战模式（玩家先手）
     case vsAI
-    /// AIゴッド模式（可以在缩小棋盘和棋盘外放置棋子）
+    /// AIゴッド模式（AI更强，先手）
     case vsAIGod
 }
 
@@ -66,6 +60,4 @@ enum GameState: Equatable {
         }
     }
 }
-
-
 

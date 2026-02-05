@@ -38,11 +38,10 @@ struct UIRendererFactory {
         case .vsAI:
             return StandardRenderer(gameMode: .vsAI)
         case .vsAIGod:
-            return GodModeRenderer()
+            return StandardRenderer(gameMode: .vsAIGod)
         }
     }
 }
-
 
 
 

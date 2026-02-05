@@ -83,9 +83,9 @@ class AIEngine {
         guard boardSize > 0 && boardSize * boardSize == board.count else {
             // 如果无法计算有效的棋盘大小，使用兜底策略
             let availableMoves = board.enumerated().compactMap { $0.element == "" ? $0.offset : nil }
-            return availableMoves.randomElement()
+            return availableMoves.first
         }
-        
+
         // 1. 优先：检查是否有可以获胜的位置（AI获胜）
         if let winningMove = findWinningMove(for: aiPlayer, in: board, boardSize: boardSize) {
             return winningMove
@@ -115,12 +115,12 @@ class AIEngine {
             $0 < board.count && board[$0] == "" 
         }
         if !availableCorners.isEmpty {
-            return availableCorners.randomElement()
+            return availableCorners.first
         }
         
         // 5. 兜底：选择任意可用位置
         let availableMoves = board.enumerated().compactMap { $0.element == "" ? $0.offset : nil }
-        return availableMoves.randomElement()
+        return availableMoves.first
     }
     
     // MARK: - 辅助方法
@@ -154,6 +154,4 @@ class AIEngine {
         return nil
     }
 }
-
-
 

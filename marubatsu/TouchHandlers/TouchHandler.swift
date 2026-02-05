@@ -13,22 +13,6 @@ protocol TouchHandler {
     ///   - scene: 游戏场景
     /// - Returns: 是否已处理该触摸事件
     func handleTouch(at location: CGPoint, in scene: GameScene) -> Bool
-    
-    /// 处理长按事件
-    /// - Parameters:
-    ///   - location: 触摸位置
-    ///   - scene: 游戏场景
-    func handleLongPress(at location: CGPoint, in scene: GameScene)
-    
-    /// 处理双击事件
-    /// - Parameters:
-    ///   - location: 触摸位置
-    ///   - scene: 游戏场景
-    func handleDoubleTap(at location: CGPoint, in scene: GameScene)
-    
-    /// 取消长按（触摸取消或移动）
-    /// - Parameter scene: 游戏场景
-    func cancelLongPress(in scene: GameScene)
 }
 
 // MARK: - 触摸处理器工厂
@@ -36,14 +20,11 @@ protocol TouchHandler {
 struct TouchHandlerFactory {
     static func create(for mode: GameMode) -> TouchHandler {
         switch mode {
-        case .twoPlayer, .vsAI:
+        case .twoPlayer, .vsAI, .vsAIGod:
             return StandardTouchHandler(gameMode: mode)
-        case .vsAIGod:
-            return GodModeTouchHandler()
         }
     }
 }
-
 
 
 

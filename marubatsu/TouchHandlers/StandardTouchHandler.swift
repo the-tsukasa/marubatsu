@@ -44,18 +44,6 @@ class StandardTouchHandler: TouchHandler {
         return false
     }
     
-    func handleLongPress(at location: CGPoint, in scene: GameScene) {
-        // 标准模式不支持长按
-    }
-    
-    func handleDoubleTap(at location: CGPoint, in scene: GameScene) {
-        // 标准模式不支持双击
-    }
-    
-    func cancelLongPress(in scene: GameScene) {
-        // 标准模式不需要取消长按
-    }
-    
     // MARK: - 辅助方法
     private func checkButtonClicks(at location: CGPoint, in scene: GameScene) -> Bool {
         // 检查MENU按钮（左上角）
@@ -99,7 +87,6 @@ class StandardTouchHandler: TouchHandler {
         )
     }
 }
-
 
 
 
